@@ -17,5 +17,4 @@ local.properties
 # Keystore
 *.jks
 *.keystore
-.DS_Store
 Thumbs.db
