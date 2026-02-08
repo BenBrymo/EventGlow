@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.eventts"
+    namespace = "com.example.eventglow"
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.example.eventts"
+        applicationId = "com.example.eventglow"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
