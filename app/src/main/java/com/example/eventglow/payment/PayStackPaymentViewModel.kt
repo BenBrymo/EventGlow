@@ -4,7 +4,6 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import com.example.eventglow.dataClass.Transaction
-import com.example.eventglow.dataClass.UserPreferences
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,8 +29,6 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
 
     // Firestore instance
     private val db = FirebaseFirestore.getInstance()
-
-    val userPreferences = UserPreferences(application)
 
     suspend fun initiatePayment(email: String, amount: String) {
         return withContext(Dispatchers.IO) {

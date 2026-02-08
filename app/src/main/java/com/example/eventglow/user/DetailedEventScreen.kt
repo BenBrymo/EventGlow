@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -80,7 +81,6 @@ fun DetailedEventScreen(
     val context = LocalContext.current
 
     // to show snackbar
-    val snackbarHostState = remember { SnackbarHostState() }
     var showDoneButton by remember { mutableStateOf(false) }
 
     // Check if the user has already bought a ticket for this event
@@ -198,7 +198,7 @@ fun DetailedEventScreen(
                         paymentViewModel.resetAuthorizationResult()
                         navController.popBackStack()
                     }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
                 },
                 colors = TopAppBarDefaults.mediumTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)

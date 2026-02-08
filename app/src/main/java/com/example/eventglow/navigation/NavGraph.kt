@@ -187,7 +187,7 @@ fun NavGraph(navController: NavHostController) {
         }
 
         composable(Routes.REPORTING_AND_ANALYTICS) {
-            ReportingAndAnalyticsScreen(navController = navController)
+            ReportingAndAnalyticsScreen()
         }
 
         composable(Routes.SETTINGS) {

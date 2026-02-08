@@ -36,7 +36,6 @@ fun UserMgmtScreen(
     navController: NavController,
     viewModel: UserManagementViewModel = viewModel()
 ) {
-    val snackbarHostState = remember { SnackbarHostState() }
 
     val users by viewModel.users.collectAsState()
     var showAddUserDialog by remember { mutableStateOf(false) }

@@ -7,10 +7,6 @@ import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.User
 import com.example.eventglow.dataClass.UserPreferences
-import com.example.eventts.dataClass.User
-import com.example.eventts.dataClass.UserPreferences
-import com.example.eventts.dataClass.BoughtTicket
-import com.example.eventts.dataClass.Event
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestore

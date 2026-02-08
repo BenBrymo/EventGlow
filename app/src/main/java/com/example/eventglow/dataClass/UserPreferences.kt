@@ -4,8 +4,6 @@ import android.app.Application
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -15,8 +13,6 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
     private val sharedPreferences =
         getApplication<Application>().getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
     val gson = Gson()
-    private val firestore = FirebaseFirestore.getInstance()
-    private val firebaseAuth = FirebaseAuth.getInstance()
 
     // Save user info, bookmarks, and favorite events
     fun saveUserInfo(

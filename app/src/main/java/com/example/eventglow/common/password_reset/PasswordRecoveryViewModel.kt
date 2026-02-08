@@ -10,7 +10,7 @@ class PasswordRecoveryViewModel : ViewModel() {
 
     private val firebaseAuth = FirebaseAuth.getInstance()
 
-    suspend fun sendPasswordResetEmail(email: String, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
+    fun sendPasswordResetEmail(email: String, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
         viewModelScope.launch {
             try {
                 //sends recovery link to email account and waits for result

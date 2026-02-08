@@ -3,6 +3,7 @@ package com.example.eventglow.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -58,7 +59,7 @@ fun SettingsScreen(navController: NavController) {
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(imageVector = Icons.Default.ExitToApp, contentDescription = "Log Out")
+            Icon(imageVector = Icons.AutoMirrored.Default.ExitToApp, contentDescription = "Log Out")
             Spacer(modifier = Modifier.width(8.dp))
             Text("Log Out")
         }

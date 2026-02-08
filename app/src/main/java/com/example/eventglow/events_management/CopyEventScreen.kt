@@ -27,7 +27,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -1049,7 +1048,7 @@ fun TicketDetailsSectionCopy(
                 //Copys object of initialized ticket
                 val ticketType = ticketTypes[index]
 
-                TicketTypeItem(
+                TicketTypeItemCopy(
                     ticketType = ticketType,
                     onTicketTypeNameChange = { newName ->
                         onTicketTypeNameChange(

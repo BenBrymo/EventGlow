@@ -60,8 +60,6 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
-    val db = FirebaseFirestore.getInstance()
-
     init {
         fetchEvents()
     }

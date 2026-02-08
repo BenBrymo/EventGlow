@@ -1,7 +1,6 @@
 package com.example.eventglow.user
 
 import android.util.Log
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -96,8 +95,6 @@ fun FilterSearchScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
-
-                        val interactionSource = remember { MutableInteractionSource() }
 
                         DropdownMenu(
                             expanded = expanded, // Use the tracked state variable

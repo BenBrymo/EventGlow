@@ -1048,7 +1048,7 @@ fun TicketDetailsSectionEdit(
                 //Edits object of initialized ticket
                 val ticketType = ticketTypes[index]
 
-                TicketTypeItem(
+                TicketTypeItemEdit(
                     ticketType = ticketType,
                     onTicketTypeNameChange = { newName ->
                         onTicketTypeNameChange(

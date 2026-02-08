@@ -19,7 +19,7 @@ class EmailVerificationViewModel : ViewModel() {
         }
     }
 
-    suspend fun sendVerificationEmail(onSuccess: () -> Unit, onError: (Exception) -> Unit) {
+    fun sendVerificationEmail(onSuccess: () -> Unit, onError: (Exception) -> Unit) {
         viewModelScope.launch {
             try {
                 val user = firebaseAuth.currentUser

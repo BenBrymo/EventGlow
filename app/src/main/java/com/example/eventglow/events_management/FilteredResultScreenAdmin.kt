@@ -28,7 +28,6 @@ import com.example.eventglow.dataClass.Event
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilteredResultScreenAdmin(
-    modifier: Modifier = Modifier,
     navController: NavController,
     viewModel: EventsManagementViewModel = viewModel()
     //serializedEvents: String // Receive serialized data as a parameter){}
