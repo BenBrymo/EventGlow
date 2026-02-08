@@ -3,7 +3,7 @@ package com.example.eventglow
 import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
-import com.example.eventts.dataClass.UserPreferences
+import com.example.eventglow.dataClass.UserPreferences
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import kotlinx.coroutines.flow.MutableStateFlow
