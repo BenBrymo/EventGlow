@@ -9,6 +9,7 @@ import androidx.navigation.navArgument
 import com.example.eventglow.SplashScreen
 import com.example.eventglow.admin_main_screen.AdminMainScreen
 import com.example.eventglow.admin_main_screen.AdminProfileScreen
+import com.example.eventglow.common.create_account.CreateAccountScreen
 import com.example.eventglow.common.email_verification.EmailVerificationScreen
 import com.example.eventglow.common.login.LoginScreen
 import com.example.eventglow.common.password_reset.PasswordRecoveryScreen
@@ -22,13 +23,12 @@ import com.example.eventglow.events_management.EditEventScreen
 import com.example.eventglow.events_management.EventsMgmtScreen
 import com.example.eventglow.events_management.FilterSearchScreenAdmin
 import com.example.eventglow.events_management.FilteredResultScreenAdmin
-import com.example.eventts.reportingandanalytics.ReportingAndAnalyticsScreen
-import com.example.eventts.ticket_management.TicketManagementScreen
-import com.example.eventts.user.SettingsScreen
-import com.example.eventts.user.UserMainScreen
+import com.example.eventglow.reportingandanalytics.ReportingAndAnalyticsScreen
+import com.example.eventglow.settings.SettingsScreen
+import com.example.eventglow.ticket_management.TicketManagementScreen
+import com.example.eventglow.user.UserMainScreen
 import com.example.eventts.user_management.UserManagementSearchScreen
 import com.example.eventts.user_management.UserMgmtScreen
-import com.example.eventts.user_management.create_account.CreateAccountScreen
 
 object Routes {
     const val SPLASH_SCREEN = "splash_screen"
