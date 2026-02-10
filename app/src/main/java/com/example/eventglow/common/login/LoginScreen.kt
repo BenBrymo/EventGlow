@@ -1,8 +1,10 @@
 package com.example.eventglow.common.login
 
+
 import android.util.Log
 import android.util.Patterns
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +18,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -23,6 +28,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -30,25 +36,295 @@ import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
 
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LoginScreen(navController: NavController) {
+fun loginScreen(
+    navController: NavController,
+    viewModel: LoginViewModel = viewModel()
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var emailError by remember { mutableStateOf<String?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    val loginState by viewModel.loginState.collectAsState()
 
-    // Scaffold to provide a basic material layout structure
-    Scaffold(
-        // top bar
-        topBar = {
-            TopAppBar(
-                // title of screen
-                title = { Text(text = "Login", color = MaterialTheme.colorScheme.primary) }
-            )
+    fun validate(): Boolean {
+        emailError = when {
+            email.isBlank() -> "Email is required"
+            !Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
+                "Invalid email address"
+
+            else -> null
         }
-    ) { paddingValues ->
-        // Surface to hold main contents with padding applied
-        Surface(Modifier.padding(paddingValues)) {
-            Login(navController = navController)
+
+        passwordError = when {
+            password.isBlank() -> "Password is required"
+            password.length < 6 -> "Password must be at least 6 characters"
+            else -> null
+        }
+
+        return emailError == null && passwordError == null
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFFF9A8B),
+                        Color(0xFFFF6A5C),
+                        Color(0xFFFFB347)
+                    )
+                )
+            )
+    ) {
+        BubbleBackground()
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxSize()
+        ) {
+
+            Spacer(Modifier.height(160.dp))
+
+            Text(
+                text = "Welcome",
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(Modifier.height(30.dp))
+
+            Card(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF121212)
+                ),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+
+                Column(
+                    modifier = Modifier.padding(20.dp)
+                ) {
+
+                    // Email Field
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {
+                            email = cleanEmailInput(it)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Email") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Person, contentDescription = null)
+                        },
+                        isError = emailError != null,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Email,
+                            autoCorrect = false
+                        )
+                    )
+
+
+                    emailError?.let {
+                        Text(
+                            text = it,
+                            color = Color.Red,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Password Field
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Password") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Lock, contentDescription = null)
+                        },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { passwordVisible = !passwordVisible }
+                            ) {
+                                Icon(
+                                    imageVector = if (passwordVisible)
+                                        Icons.Default.Visibility
+                                    else Icons.Default.VisibilityOff,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        visualTransformation = if (passwordVisible)
+                            VisualTransformation.None
+                        else PasswordVisualTransformation(),
+                        isError = passwordError != null,
+                        singleLine = true
+                    )
+
+                    passwordError?.let {
+                        Text(
+                            text = it,
+                            color = Color.Red,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = "Forgot Password?",
+                        modifier = Modifier
+                            .align(Alignment.End),
+                        color = Color(0xFFFF6A5C),
+                        fontSize = 13.sp
+                    )
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // Login Button
+                    Button(
+                        onClick = {
+                            val cleanedEmail = email.trim()
+                            if (validate()) {
+                                isLoading = true
+                                viewModel.login(cleanedEmail, password)
+                            }
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFF6A5C)
+                        )
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        } else {
+                            Text(
+                                text = "Login",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Don't have an account? ",
+                            color = Color.Gray
+                        )
+                        Text(
+                            text = "Sign Up",
+                            color = Color(0xFFFF6A5C),
+                            fontWeight = FontWeight.Bold,
+
+                            )
+                    }
+
+                    when (val state = loginState) {
+
+                        // when login state is Error
+                        is LoginState.Error -> {
+                            Text(
+                                text = if (state.message == "Authentication error: The supplied auth credential is incorrect, malformed or has expired.") "Wrong username or password" else state.message, // Display error message
+                                color = MaterialTheme.colorScheme.error // Set text color to red
+                            )
+                        }
+
+                        //when login state is loading
+                        LoginState.Loading -> {
+                            CircularProgressIndicator()
+                        }
+
+                        is LoginState.Success -> {
+                            val role = state.role
+                            LaunchedEffect(role) {
+                                when (role) {
+                                    "user" -> {
+                                        navController.navigate(Routes.USER_MAIN_SCREEN)
+                                    }
+
+                                    "admin" -> {
+                                        navController.navigate(Routes.ADMIN_MAIN_SCREEN)
+                                    }
+                                }
+                            }
+                        }
+
+                        else -> Unit // Do nothing if state is idle
+                    }
+                }
+            }
         }
     }
+}
+
+
+@Composable
+fun BubbleBackground() {
+    Canvas(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Top-left big bubble
+        drawCircle(
+            color = Color.White.copy(alpha = 0.12f),
+            radius = size.minDimension * 0.45f,
+            center = Offset(
+                x = size.width * 0.2f,
+                y = size.height * 0.1f
+            )
+        )
+
+        // Bottom-right bubble
+        drawCircle(
+            color = Color.White.copy(alpha = 0.10f),
+            radius = size.minDimension * 0.35f,
+            center = Offset(
+                x = size.width * 0.9f,
+                y = size.height * 0.9f
+            )
+        )
+
+        // Mid-right small bubble
+        drawCircle(
+            color = Color.White.copy(alpha = 0.08f),
+            radius = size.minDimension * 0.18f,
+            center = Offset(
+                x = size.width * 0.85f,
+                y = size.height * 0.3f
+            )
+        )
+    }
+}
+
+
+fun cleanEmailInput(input: String): String {
+    return input
+        .trim()          // remove leading & trailing spaces
+        .replace(" ", "") // remove internal spaces (autofill issue)
 }
 
 
@@ -259,61 +535,15 @@ fun Login(
                         Text(text = "Login")
                     }
 
-                    // checks login state
-                    when (val state = loginState) {
-
-                        // when login state is Error
-                        is LoginState.Error -> {
-                            Log.d("LoginScreen", "Login State returned error now showing error message")
-                            Text(
-                                text = if (state.message == "Authentication error: The supplied auth credential is incorrect, malformed or has expired.") "Wrong username or password" else state.message, // Display error message
-                                color = MaterialTheme.colorScheme.error // Set text color to red
-                            )
-                        }
-
-                        //when login state is loading
-                        LoginState.Loading -> {
-                            Log.d("LoginScreen", "Login State returned loading now showing loading indicator")
-                            CircularProgressIndicator() // Display loading indicator
-                        }
-
-                        //when login state is success
-                        is LoginState.Success -> {
-                            Log.d(
-                                "LoginScreen",
-                                "Login State returned success redirecting to the appropriate user screen"
-                            )
-                            val role = state.role
-                            Log.d("LoginScreen", "Role $role has been returned by LoginState")
-                            // Launch effect to navigate
-                            LaunchedEffect(role) {
-
-                                //checks role of user
-                                when (role) {
-
-                                    //when role is user
-                                    "user" -> {
-                                        navController.navigate(Routes.USER_MAIN_SCREEN)
-                                    }
-
-                                    //when role is admin
-                                    "admin" -> {
-                                        navController.navigate(Routes.ADMIN_MAIN_SCREEN)
-                                    }
-                                }
-                            }
-                        }
-
-                        else -> Unit // Do nothing if state is idle
-                    }
                 }
             }
         }
     }
 }
 
+
 @Preview
 @Composable
 fun LoginPreview() {
-    LoginScreen(navController = rememberNavController())
+    loginScreen(navController = rememberNavController())
 }

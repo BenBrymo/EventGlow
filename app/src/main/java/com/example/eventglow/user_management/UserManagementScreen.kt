@@ -29,6 +29,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.eventglow.dataClass.User
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.user_management.UserManagementViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
