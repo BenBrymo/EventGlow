@@ -11,46 +11,216 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.eventglow.navigation.Routes
+import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.R
+import com.example.eventglow.navigation.Routes
 import kotlinx.coroutines.launch
+
+
+val BackgroundBlack = Color(0xFF0F0F0F)
+val FieldBorderGray = Color(0xFF5A5A5A)
+val HintGray = Color(0xFF9E9E9E)
+val AccentOrange = Color(0xFFE65100)
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateAccountScreen(navController: NavController) {
+fun createAccountScreen(
+    navController: NavController,
+) {
+    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var confirmPasswordVisible by remember { mutableStateOf(false) }
 
-    // Scaffold to provide a basic material layout structure
     Scaffold(
-        // top bar
         topBar = {
             TopAppBar(
                 title = {
-                    Text(text = "Create Account", color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = "Create Account",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { }) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Black
+                )
+            )
+        },
+        containerColor = BackgroundBlack
+    ) { paddingValues ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Username
+            AuthOutlinedField(
+                value = username,
+                onValueChange = { username = it },
+                label = "Username",
+                leadingIcon = Icons.Default.Person
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Email
+            AuthOutlinedField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                leadingIcon = Icons.Default.Email
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Password
+            AuthOutlinedField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Password",
+                leadingIcon = Icons.Default.Lock,
+                isPassword = true,
+                passwordVisible = passwordVisible,
+                onVisibilityChange = {
+                    passwordVisible = !passwordVisible
                 }
             )
-        }
-    ) { paddingValues ->
-        // Surface to hold main contents with padding applied
-        Surface(Modifier.padding(paddingValues)) {
-            CreateAccount(navController = navController)
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Confirm Password
+            AuthOutlinedField(
+                value = confirmPassword,
+                onValueChange = { confirmPassword = it },
+                label = "Confirm Password",
+                leadingIcon = Icons.Default.Lock,
+                isPassword = true,
+                passwordVisible = confirmPasswordVisible,
+                onVisibilityChange = {
+                    confirmPasswordVisible = !confirmPasswordVisible
+                }
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Create Account Button
+            Button(
+                onClick = { /* logic later */ },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(28.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentOrange
+                )
+            ) {
+                Text(
+                    text = "Create Account",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            }
         }
     }
+}
+
+@Composable
+fun AuthOutlinedField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    leadingIcon: ImageVector,
+    isPassword: Boolean = false,
+    passwordVisible: Boolean = false,
+    onVisibilityChange: (() -> Unit)? = null
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        label = {
+            Text(text = label, color = HintGray)
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = null,
+                tint = HintGray
+            )
+        },
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { onVisibilityChange?.invoke() }) {
+                    Icon(
+                        imageVector = if (passwordVisible)
+                            Icons.Default.Visibility
+                        else Icons.Default.VisibilityOff,
+                        contentDescription = null,
+                        tint = HintGray
+                    )
+                }
+            }
+        } else null,
+        visualTransformation = if (isPassword && !passwordVisible)
+            PasswordVisualTransformation()
+        else VisualTransformation.None,
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = FieldBorderGray,
+            unfocusedBorderColor = FieldBorderGray,
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            cursorColor = AccentOrange
+        ),
+        shape = RoundedCornerShape(12.dp)
+    )
 }
 
 
@@ -400,3 +570,8 @@ fun CreateAccount(navController: NavController, viewModel: CreateAccountViewMode
     }
 }
 
+@Preview
+@Composable
+fun CreateAccountScreenPreview() {
+    createAccountScreen(navController = rememberNavController())
+}

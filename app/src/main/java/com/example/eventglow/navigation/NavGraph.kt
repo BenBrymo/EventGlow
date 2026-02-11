@@ -9,11 +9,11 @@ import androidx.navigation.navArgument
 import com.example.eventglow.SplashScreen
 import com.example.eventglow.admin_main_screen.AdminMainScreen
 import com.example.eventglow.admin_main_screen.AdminProfileScreen
-import com.example.eventglow.common.create_account.CreateAccountScreen
+import com.example.eventglow.common.create_account.createAccountScreen
 import com.example.eventglow.common.email_verification.EmailVerificationScreen
-import com.example.eventglow.common.login.LoginScreen
-import com.example.eventglow.common.password_reset.PasswordRecoveryScreen
+import com.example.eventglow.common.login.loginScreen
 import com.example.eventglow.common.password_reset.PasswordResetConfirmationScreen
+import com.example.eventglow.common.password_reset.passwordRecoveryScreen
 import com.example.eventglow.events_management.AdminSearchScreen
 import com.example.eventglow.events_management.CopyEventScreen
 import com.example.eventglow.events_management.CreateEventScreen
@@ -71,17 +71,17 @@ fun NavGraph(navController: NavHostController) {
 
         // defines login screen route
         composable(Routes.LOGIN_SCREEN) {
-            LoginScreen(navController = navController)
+            loginScreen(navController = navController)
         }
 
         //defines create account screen route
-        composable(Routes.CREATE_ACCOUNT_SCREEN) {
-            CreateAccountScreen(navController = navController)
+        this.composable(Routes.CREATE_ACCOUNT_SCREEN) {
+            createAccountScreen(navController = navController)
         }
 
         //defines password recovery screen route
         composable(Routes.PASSWORD_RECOVERY_SCREEN) {
-            PasswordRecoveryScreen(navController = navController)
+            passwordRecoveryScreen(navController = navController)
         }
 
         // defines password reset confirmation screen route

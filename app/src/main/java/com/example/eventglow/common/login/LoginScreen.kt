@@ -6,6 +6,7 @@ import android.util.Patterns
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,7 +35,6 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
-
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -186,9 +186,11 @@ fun loginScreen(
                     Text(
                         text = "Forgot Password?",
                         modifier = Modifier
-                            .align(Alignment.End),
+                            .align(Alignment.End)
+                            .clickable(onClick = { navController.navigate(Routes.PASSWORD_RECOVERY_SCREEN) }),
                         color = Color(0xFFFF6A5C),
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+
                     )
 
                     Spacer(Modifier.height(20.dp))
@@ -240,7 +242,7 @@ fun loginScreen(
                             text = "Sign Up",
                             color = Color(0xFFFF6A5C),
                             fontWeight = FontWeight.Bold,
-
+                            modifier = Modifier.clickable(onClick = { navController.navigate(Routes.CREATE_ACCOUNT_SCREEN) })
                             )
                     }
 
