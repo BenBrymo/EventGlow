@@ -66,9 +66,6 @@ dependencies {
     implementation(libs.retrofit.gson)
     implementation(libs.gson)
 
-    // OneSignal
-    implementation(libs.onesignal)
-
     // Coil
     implementation(libs.coil.compose)
 
@@ -104,6 +101,7 @@ dependencies {
 
     // Tests
     testImplementation(libs.junit)
+
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.espresso)
     androidTestImplementation(platform(libs.compose.bom))
@@ -112,8 +110,5 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 
-    androidTestImplementation(libs.compose.ui.test.junit4)
-    debugImplementation(libs.compose.ui.tooling)
-    debugImplementation(libs.compose.ui.test.manifest)
 
 }

@@ -10,7 +10,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.onesignal.OneSignal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -105,13 +104,6 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
                                                 emptyList()
                                             )
                                             Log.d("LoginViewModel", "User data stored to shared preferences")
-
-                                            // When the user logs in or registers
-                                            if (role == "user") {
-                                                OneSignal.User.addTag("role", "user")
-                                            } else {
-                                                OneSignal.User.addTag("role", "admin")
-                                            }
 
                                             _loginState.value = LoginState.Success(role)
                                             Log.d("LoginViewModel", "Login State set to success")

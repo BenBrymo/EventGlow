@@ -35,7 +35,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.TicketType
-import com.example.eventglow.notification.NotificationViewModel
+
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -46,7 +46,6 @@ import java.util.*
 fun CopyEventScreen(
     navController: NavController,
     viewModel: EventsManagementViewModel = viewModel(),
-    notificationViewModel: NotificationViewModel = viewModel(),
     eventId: String?
 ) {
 
@@ -370,7 +369,7 @@ fun CopyEventScreen(
                                         isDraft = false,
                                         onSuccess = {
                                             scope.launch {
-                                                notificationViewModel.sendNewEventNotification()
+                                                //notificationViewModel.sendNewEventNotification()
                                                 navController.popBackStack()
                                             }
                                         },

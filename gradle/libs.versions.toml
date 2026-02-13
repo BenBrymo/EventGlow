@@ -31,12 +31,11 @@ gson = "2.10.1"
 serialization = "1.6.2"
 coil = "2.5.0"
 
-oneSignal = "5.0.0"
 media3 = "1.4.0"
 
 junit = "4.13.2"
-androidxJunit = "1.2.1"
-espresso = "3.6.1"
+androidxJunit = "1.1.5"
+espresso = "3.5.1"
 
 
 [libraries]
@@ -76,8 +75,6 @@ gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
-
-onesignal = { group = "com.onesignal", name = "OneSignal", version.ref = "oneSignal" }
 
 media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
 

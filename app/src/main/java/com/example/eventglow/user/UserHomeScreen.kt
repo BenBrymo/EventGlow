@@ -16,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -32,8 +31,9 @@ import com.example.eventglow.navigation.Routes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+
 @Composable
-fun UserHomeScreen(
+fun userHomeScreen(
     navController: NavController,
     viewModel: EventsManagementViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel()
@@ -58,27 +58,12 @@ fun UserHomeScreen(
             .padding(16.dp)
     ) {
         item {
-            var isSearchBarFocussed by remember { mutableStateOf(false) }
-            // Search Bar
-            OutlinedTextField(
-                value = "",
-                onValueChange = {},
-                placeholder = { Text("Search for Event names,venue...") },
-                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused && !isSearchBarFocussed) {
-                            navController.navigate(Routes.USER_SEARCH_SCREEN)
-                        }
 
-                        isSearchBarFocussed = focusState.isFocused
-                    },
-                singleLine = true
-            )
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Spacer(modifier = Modifier.height(20.dp))
+            searchBar(navController)
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Featured Event
             Text(
@@ -97,7 +82,14 @@ fun UserHomeScreen(
                 }
             )
 
-            Spacer(modifier = Modifier.height(25.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        item {
+
+            filterRow()
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
 
         categories.forEach { category ->
@@ -136,6 +128,40 @@ fun UserHomeScreen(
         }
     }
 }
+
+
+@Composable
+private fun filterRow() {
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+
+        eventFilterButton("Upcoming")
+        eventFilterButton("Today")
+    }
+}
+
+
+@Composable
+private fun eventFilterButton(text: String) {
+
+    Button(
+        onClick = {},
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        ),
+        modifier = Modifier.width(140.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge
+        )
+    }
+}
+
 
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -319,4 +345,45 @@ fun EventCard(event: Event, onEventClicked: (Event) -> Unit) {
             )
         }
     }
+}
+
+
+@Composable
+private fun searchBar(navController: NavController) {
+
+    var isSearchBarFocussed by remember { mutableStateOf(false) }
+
+    OutlinedTextField(
+        value = "",
+        onValueChange = {
+
+        },
+        placeholder = {
+            Text(
+                "Search events",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null
+            )
+        },
+        shape = RoundedCornerShape(50),
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused && !isSearchBarFocussed) {
+                    navController.navigate(Routes.USER_SEARCH_SCREEN)
+                }
+
+                isSearchBarFocussed = focusState.isFocused
+            },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.outline,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            cursorColor = MaterialTheme.colorScheme.primary
+        )
+    )
 }

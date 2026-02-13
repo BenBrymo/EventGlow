@@ -2,20 +2,283 @@ package com.example.eventglow.user
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.BorderStrong
+import com.example.eventglow.ui.theme.BrandPrimary
+import com.example.eventglow.ui.theme.TextPrimary
+import com.example.eventglow.ui.theme.TextSecondary
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(
+    navController: NavController
+) {
+
+    var notificationsEnabled by rememberSaveable { mutableStateOf(true) }
+
+    Scaffold(
+        containerColor = Background,
+        topBar = {
+            SettingsTopBar(onBack = { })
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
+
+            Spacer(Modifier.height(16.dp))
+
+            SettingsSectionTitle("Account Management")
+
+            SettingsItem(
+                icon = Icons.Filled.Person,
+                title = "Profile Settings",
+                subtitle = "Update your profile information",
+                onClick = { }
+            )
+
+            SettingsItem(
+                icon = Icons.Filled.Lock,
+                title = "Change Password",
+                subtitle = "Update your account password",
+                onClick = { }
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            SettingsSectionTitle("Notification Settings")
+
+            NotificationItem(
+                icon = Icons.Filled.Notifications,
+                title = "Notifications",
+                subtitle = "Receive notifications about events",
+                checked = notificationsEnabled,
+                onCheckedChange = { notificationsEnabled = it }
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            SettingsSectionTitle("Support & Feedback")
+
+            SettingsItem(
+                icon = Icons.Filled.SupportAgent,
+                title = "Contact Support",
+                subtitle = "Reach out for assistance",
+                onClick = { }
+            )
+
+            SettingsItem(
+                icon = Icons.Filled.Feedback,
+                title = "Send Feedback",
+                subtitle = "Help us improve with your feedback",
+                onClick = { }
+            )
+
+            Spacer(Modifier.height(32.dp))
+
+            Button(
+                onClick = { },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(28.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrandPrimary
+                )
+            ) {
+
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Logout,
+                    contentDescription = null,
+                    tint = TextPrimary
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                Text(
+                    text = "Log Out",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TextPrimary
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsTopBar(
+    onBack: () -> Unit
+) {
+
+    CenterAlignedTopAppBar(
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = Background
+        ),
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = null,
+                    tint = TextPrimary
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Settings",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+        }
+    )
+}
+
 
 @Composable
-fun SettingsScreen(navController: NavController) {
+private fun SettingsSectionTitle(
+    title: String
+) {
+
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        color = TextPrimary,
+        modifier = Modifier.padding(bottom = 12.dp)
+    )
+}
+
+
+@Composable
+private fun SettingsItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = BrandPrimary
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextPrimary
+            )
+
+            Spacer(Modifier.height(2.dp))
+
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotificationItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = BrandPrimary
+        )
+
+        Spacer(Modifier.width(16.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = TextPrimary
+            )
+
+            Spacer(Modifier.height(2.dp))
+
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
+        }
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = TextPrimary,
+                checkedTrackColor = BrandPrimary,
+                uncheckedThumbColor = TextPrimary,
+                uncheckedTrackColor = BorderStrong
+            )
+        )
+    }
+}
+
+
+@Composable
+fun SettingsScreen2(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -78,7 +341,7 @@ fun AccountManagement() {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Person,
             title = "Profile Settings",
             description = "Update your profile information"
@@ -86,7 +349,7 @@ fun AccountManagement() {
             // Navigate to Profile Settings screen
         }
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Password,
             title = "Change Password",
             description = "Update your account password"
@@ -94,7 +357,7 @@ fun AccountManagement() {
             // Navigate to Change Password screen
         }
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Lock,
             title = "Manage Security",
             description = "Set up two-factor authentication (2FA)"
@@ -119,7 +382,7 @@ fun AppPreferences() {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Brightness6,
             title = "Dark Mode",
             description = "Enable or disable dark theme"
@@ -144,7 +407,7 @@ fun AppPreferences() {
             )
         }
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Language,
             title = "App Language",
             description = "Select your preferred language"
@@ -188,7 +451,7 @@ fun NotificationSettings() {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Email,
             title = "Email Notifications",
             description = "Receive notifications via email"
@@ -213,7 +476,7 @@ fun NotificationSettings() {
             )
         }
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Notifications,
             title = "In-App Notifications",
             description = "Receive notifications within the app"
@@ -252,7 +515,7 @@ fun SupportAndFeedback(navController: NavController) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.SupportAgent,
             title = "Contact Support",
             description = "Reach out for assistance"
@@ -260,7 +523,7 @@ fun SupportAndFeedback(navController: NavController) {
             // Navigate to Contact Support screen
         }
 
-        SettingsItem(
+        SettingsItem2(
             icon = Icons.Default.Feedback,
             title = "Send Feedback",
             description = "Help us improve with your feedback"
@@ -271,7 +534,7 @@ fun SupportAndFeedback(navController: NavController) {
 }
 
 @Composable
-fun SettingsItem(
+fun SettingsItem2(
     icon: ImageVector,
     title: String,
     description: String,

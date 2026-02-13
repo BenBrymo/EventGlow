@@ -30,14 +30,158 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.BoughtTicket
+import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.CardGray
+import com.example.eventglow.ui.theme.SurfaceLevel2
+import com.example.eventglow.ui.theme.TextPrimary
+import com.example.eventglow.ui.theme.TextSecondary
 import com.google.accompanist.swiperefresh.SwipeRefresh
 import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserTicketScreen(
+fun MyTicketsScreen(
+    navController: NavController
+) {
+
+    Scaffold(
+        containerColor = Background,
+        topBar = {
+            MyTicketsTopBar(onBack = {})
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+
+            MyTicketItem(
+                organizer = "fhikkm",
+                title = "bjj",
+                date = "18, Feb",
+                price = "GHS 0.0"
+            )
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MyTicketsTopBar(
+    onBack: () -> Unit
+) {
+
+    CenterAlignedTopAppBar(
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = Background
+        ),
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = null,
+                    tint = TextPrimary
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "My Tickets",
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+        }
+    )
+}
+
+@Composable
+private fun MyTicketItem(
+    organizer: String,
+    title: String,
+    date: String,
+    price: String
+) {
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CardGray)
+            .padding(16.dp)
+    ) {
+
+        Column {
+
+            Text(
+                text = "Organizer: $organizer",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(SurfaceLevel2)
+                ) {
+
+                    AsyncImage(
+                        model = "https://picsum.photos/200/200",
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = date,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+
+                Text(
+                    text = price,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextPrimary
+                )
+            }
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UserTicketScreen2(
     navController: NavController,
     userViewModel: UserViewModel = viewModel()
 ) {

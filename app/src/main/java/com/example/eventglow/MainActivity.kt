@@ -29,6 +29,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.NavGraph
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.EventGlowTheme
 import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -38,10 +39,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // initializes firebase
         FirebaseApp.initializeApp(this)
         setContent {
-            MyApp()
+            EventGlowTheme() {
+                MyApp()
+            }
         }
     }
 }
@@ -49,10 +51,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MyApp() {
-    val navController = rememberNavController() //for navigation
-    NavGraph(navController = navController) // calls navgraph for navigation
+    val navController = rememberNavController()
+    NavGraph(navController = navController)
     val viewModel: MainActivityViewModel = viewModel() // sets the persistentLoginState
 }
+
 
 @Composable
 fun SplashScreen(

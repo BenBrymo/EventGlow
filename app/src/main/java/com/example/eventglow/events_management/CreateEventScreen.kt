@@ -36,7 +36,6 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.TicketType
-import com.example.eventglow.notification.NotificationViewModel
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -47,7 +46,6 @@ import java.util.*
 fun CreateEventScreen(
     navController: NavController,
     viewModel: EventsManagementViewModel = viewModel(),
-    notificationViewModel: NotificationViewModel = viewModel()
 ) {
 
     // Remember coroutine scope for performing asynchronous actions
@@ -352,7 +350,7 @@ fun CreateEventScreen(
                                     isDraft = false,
                                     onSuccess = {
                                         scope.launch {
-                                            notificationViewModel.sendNewEventNotification()
+                                            //notificationViewModel.sendNewEventNotification()
                                             navController.popBackStack()
                                         }
                                     },

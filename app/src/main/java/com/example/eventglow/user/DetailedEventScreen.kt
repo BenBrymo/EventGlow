@@ -11,12 +11,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,9 +27,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.dataClass.BoughtTicket
@@ -38,6 +43,12 @@ import com.example.eventglow.navigation.Routes
 import com.example.eventglow.payment.AuthorizationResult
 import com.example.eventglow.payment.PayStackPaymentViewModel
 import com.example.eventglow.payment.VerificationResult
+import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.BrandPrimary
+import com.example.eventglow.ui.theme.CardGray
+import com.example.eventglow.ui.theme.SurfaceLevel2
+import com.example.eventglow.ui.theme.TextPrimary
+import com.example.eventglow.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -206,12 +217,13 @@ fun DetailedEventScreen(
         }
     ) { paddingValues ->
         Surface(modifier = Modifier.padding(paddingValues)) {
-            DetailedEventContent(
-                event = event,
-                showDoneButton = showDoneButton,
-                hasBoughtTicket = hasBoughtTicket,
-                chosenTicketType = { ticketType -> selectedTicketType = ticketType }
-            )
+            EventDetailsScreen()
+//            DetailedEventContent(
+//                event = event,
+//                showDoneButton = showDoneButton,
+//                hasBoughtTicket = hasBoughtTicket,
+//                chosenTicketType = { ticketType -> selectedTicketType = ticketType }
+//            )
 
         }
     }
@@ -227,6 +239,272 @@ fun DetailedEventScreen(
         }
     }
 }
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EventDetailsScreen() {
+
+    var quantity by rememberSaveable { mutableIntStateOf(1) }
+
+    Scaffold(
+        containerColor = Background
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+        ) {
+
+            EventHeaderImage()
+
+            EventActionsRow()
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+            ) {
+
+                Text(
+                    text = "bjj",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Wednesday Feb 18",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                EventInfoBlock(
+                    title = "Time",
+                    value = "5:00 PM"
+                )
+
+                EventInfoBlock(
+                    title = "Duration",
+                    value = "2 hr 30 min"
+                )
+
+                EventInfoBlock(
+                    title = "Venue",
+                    value = "dtuj"
+                )
+
+                EventInfoBlock(
+                    title = "Description",
+                    value = "fhkklll"
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Text(
+                    text = "Tickets",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                TicketTypeItem(
+                    title = "Normal - GHS 0.0"
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                Text(
+                    text = "Quantity",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                QuantitySelector(
+                    value = quantity,
+                    onDecrease = {
+                        if (quantity > 1) quantity--
+                    },
+                    onIncrease = {
+                        quantity++
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                Text(
+                    text = "Total Amount",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = TextPrimary
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = { },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BrandPrimary
+                    ),
+                    shape = RoundedCornerShape(28.dp)
+                ) {
+
+                    Text(
+                        text = "Proceed to Payment",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TextPrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventHeaderImage() {
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(230.dp)
+            .padding(16.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(SurfaceLevel2)
+    ) {
+
+        AsyncImage(
+            model = "https://picsum.photos/800/600",
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+@Composable
+private fun EventActionsRow() {
+
+    Row(
+        modifier = Modifier
+            .padding(horizontal = 24.dp)
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(24.dp)
+    ) {
+
+        Icon(
+            imageVector = Icons.Filled.BookmarkBorder,
+            contentDescription = null,
+            tint = TextPrimary
+        )
+
+        Icon(
+            imageVector = Icons.Filled.FavoriteBorder,
+            contentDescription = null,
+            tint = TextPrimary
+        )
+    }
+}
+
+@Composable
+private fun EventInfoBlock(
+    title: String,
+    value: String
+) {
+
+    Column(
+        modifier = Modifier.padding(bottom = 18.dp)
+    ) {
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = TextPrimary
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary
+        )
+    }
+}
+
+@Composable
+private fun TicketTypeItem(
+    title: String
+) {
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(CardGray)
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyLarge,
+            color = TextPrimary
+        )
+    }
+}
+
+@Composable
+private fun QuantitySelector(
+    value: Int,
+    onDecrease: () -> Unit,
+    onIncrease: () -> Unit
+) {
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        IconButton(onClick = onDecrease) {
+            Icon(
+                imageVector = Icons.Default.Remove,
+                contentDescription = null,
+                tint = TextPrimary
+            )
+        }
+
+        Text(
+            text = value.toString(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = TextPrimary,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+
+        IconButton(onClick = onIncrease) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = TextPrimary
+            )
+        }
+    }
+}
+
+
 
 @Composable
 fun DetailedEventContent(
@@ -248,7 +526,6 @@ fun DetailedEventContent(
     LaunchedEffect(Unit) {
         isFavorite = userViewModel.isEventFavorite(event)
     }
-
 
     val userData by sharedPreferencesViewModel.userInfo.collectAsState()
     val email = userData["USER_EMAIL"]
@@ -490,4 +767,11 @@ fun TicketTypeCard(
             )
         }
     }
+}
+
+
+@Preview
+@Composable
+fun EventDetailsScreenPreview() {
+    EventDetailsScreen()
 }

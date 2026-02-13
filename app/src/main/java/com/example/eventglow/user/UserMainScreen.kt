@@ -20,6 +20,10 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.BottomNavGray
+import com.example.eventglow.ui.theme.BrandPrimary
+import com.example.eventglow.ui.theme.LightGrayText
+
 
 @Composable
 fun UserMainScreen(navController: NavController) {
@@ -54,7 +58,8 @@ fun BottomNavigationBar(navController: NavHostController) {
     val currentRoute = navBackStackEntry?.destination?.route
 
     NavigationBar(
-        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        containerColor = BottomNavGray,
+        contentColor = MaterialTheme.colorScheme.primary
     ) {
         items.forEach { item ->
             NavigationBarItem(
@@ -67,6 +72,13 @@ fun BottomNavigationBar(navController: NavHostController) {
                 label = {
                     Text(item.label)
                 },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = BrandPrimary,
+                    selectedTextColor = BrandPrimary,
+                    unselectedIconColor = LightGrayText,
+                    unselectedTextColor = LightGrayText,
+                    indicatorColor = BottomNavGray
+                ),
                 selected = currentRoute == item.route,
                 onClick = {
 
@@ -83,6 +95,7 @@ fun BottomNavigationBar(navController: NavHostController) {
     }
 }
 
+
 @Composable
 fun BottomNavGraph(
     navController: NavHostController, //bottom NavController
@@ -90,13 +103,13 @@ fun BottomNavGraph(
 ) {
     NavHost(navController = navController, startDestination = Routes.USER_MAIN_SCREEN) {
         composable(Routes.USER_MAIN_SCREEN) {
-            UserHomeScreen(navController = navController)
+            userHomeScreen(navController = navController)
         }
         composable(Routes.TICKETS_SCREEN) {
-            UserTicketScreen(navController = navController)
+            MyTicketsScreen(navController = navController)
         }
         composable(Routes.USER_PROFILE_SCREEN) {
-            UserProfileScreen(mainNavController = mainNavController, bottomNavController = navController)
+            ProfileScreen(mainNavController = mainNavController, bottomNavController = navController)
         }
 
         composable(RoutesUser.FAVOURITE_EVENTS_SCREEN) {
@@ -116,7 +129,7 @@ fun BottomNavGraph(
         }
 
         composable(Routes.BOOKMARKS_SCREEN) {
-            BookmarkScreen(navController = navController)
+            BookmarksScreen(navController = navController)
         }
 
         // defines detailed event screen route

@@ -23,12 +23,12 @@ import com.example.eventglow.events_management.EditEventScreen
 import com.example.eventglow.events_management.EventsMgmtScreen
 import com.example.eventglow.events_management.FilterSearchScreenAdmin
 import com.example.eventglow.events_management.FilteredResultScreenAdmin
-import com.example.eventglow.reportingandanalytics.ReportingAndAnalyticsScreen
 import com.example.eventglow.settings.SettingsScreen
 import com.example.eventglow.ticket_management.TicketManagementScreen
 import com.example.eventglow.user.UserMainScreen
 import com.example.eventts.user_management.UserManagementSearchScreen
 import com.example.eventts.user_management.UserMgmtScreen
+
 
 object Routes {
     const val SPLASH_SCREEN = "splash_screen"
@@ -186,9 +186,9 @@ fun NavGraph(navController: NavHostController) {
             UserManagementSearchScreen(navController = navController)
         }
 
-        composable(Routes.REPORTING_AND_ANALYTICS) {
-            ReportingAndAnalyticsScreen()
-        }
+//        composable(Routes.REPORTING_AND_ANALYTICS) {
+//            ReportingAndAnalyticsScreen()
+//        }
 
         composable(Routes.SETTINGS) {
             SettingsScreen(navController = navController)

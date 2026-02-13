@@ -35,7 +35,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.TicketType
-import com.example.eventglow.notification.NotificationViewModel
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -46,13 +45,11 @@ import java.util.*
 fun EditEventScreen(
     navController: NavController,
     viewModel: EventsManagementViewModel = viewModel(),
-    notificationViewModel: NotificationViewModel = viewModel(),
     eventId: String?
 ) {
 
     // Remember coroutine scope for performing asynchronous actions
     val scope = rememberCoroutineScope()
-
 
     //retrives event from eventlist
     val event = viewModel.getEventById(eventId)
@@ -370,7 +367,7 @@ fun EditEventScreen(
                                         isDraft = false,
                                         onSuccess = {
                                             scope.launch {
-                                                notificationViewModel.sendNewEventNotification()
+                                                //notificationViewModel.sendNewEventNotification()
                                                 navController.popBackStack()
                                             }
                                         },

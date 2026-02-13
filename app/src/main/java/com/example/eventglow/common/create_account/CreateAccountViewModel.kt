@@ -11,7 +11,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.onesignal.OneSignal
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -135,11 +134,6 @@ class CreateAccountViewModel(application: Application) : AndroidViewModel(applic
                                     )
 
                                     // When the user logs in or registers
-                                    if (role == "user") {
-                                        OneSignal.User.addTag("role", "user")
-                                    } else {
-                                        OneSignal.User.addTag("role", "admin")
-                                    }
                                     _createAccountState.value =
                                         CreateAccountState.Success(message = "Great! your account was created successfully")
                                 }
