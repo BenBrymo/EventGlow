@@ -17,11 +17,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -30,10 +32,240 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.eventglow.R
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.BorderSubtle
+import com.example.eventglow.ui.theme.BrandPrimary
+import com.example.eventglow.ui.theme.SurfaceLevel3
+import com.example.eventglow.ui.theme.TextHint
+import com.example.eventglow.ui.theme.TextPrimary
+import com.example.eventglow.ui.theme.TextSecondary
+import com.example.eventglow.ui.theme.Warning
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+
+@Composable
+fun ManageEventsScreen(
+    events: List<EventItem> = sampleEvents,
+    onBackClick: () -> Unit = {},
+    onSearch: (String) -> Unit = {},
+    onAddEvent: () -> Unit = {},
+    onEventClick: (EventItem) -> Unit = {},
+    navController: NavController
+) {
+
+    var search by remember { mutableStateOf("") }
+
+    Scaffold(
+        containerColor = Background,
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddEvent,
+                containerColor = BrandPrimary,
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null)
+            }
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+
+            ManageEventsHeader(onBackClick)
+
+            Spacer(Modifier.height(16.dp))
+
+            SearchBar(
+                value = search,
+                onValueChange = {
+                    search = it
+                    onSearch(it)
+                }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+
+                items(events) { event ->
+                    ManageEventCard(event) {
+                        onEventClick(event)
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun ManageEventsHeader(onBackClick: () -> Unit) {
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Background)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        IconButton(onClick = onBackClick) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = TextPrimary)
+        }
+
+        Text(
+            "Manage Events",
+            style = MaterialTheme.typography.titleLarge,
+            color = TextPrimary
+        )
+    }
+}
+
+
+@Composable
+fun SearchBar(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = {
+            Text("Search events", color = TextHint)
+        },
+        leadingIcon = {
+            Icon(Icons.Default.Search, null, tint = TextSecondary)
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(30.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = SurfaceLevel3,
+            unfocusedContainerColor = SurfaceLevel3,
+            focusedBorderColor = BorderSubtle,
+            unfocusedBorderColor = BorderSubtle,
+            cursorColor = BrandPrimary,
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary
+        )
+    )
+}
+
+
+@Composable
+fun ManageEventCard(
+    event: EventItem,
+    onClick: () -> Unit
+) {
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(SurfaceLevel3)
+            .clickable(onClick = onClick)
+    ) {
+
+        Box {
+
+            Image(
+                painterResource(event.image),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp),
+                contentScale = ContentScale.Crop
+            )
+
+            StatusBadge(event.status)
+        }
+
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+
+            Text(
+                event.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+
+                Text(
+                    event.date,
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Text(
+                    event.location,
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+
+@Composable
+fun StatusBadge(status: String) {
+
+    Box(
+        modifier = Modifier
+            .padding(12.dp)
+            .background(Warning, RoundedCornerShape(20.dp))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.TopEnd
+
+    ) {
+        Text(
+            status.uppercase(),
+            color = Color.White,
+            style = MaterialTheme.typography.labelMedium
+        )
+    }
+}
+
+
+data class EventItem(
+    val image: Int,
+    val title: String,
+    val date: String,
+    val location: String,
+    val status: String
+)
+
+val sampleEvents = listOf(
+    EventItem(
+        R.drawable.applogo,
+        "bjj",
+        "Wednesday Feb, 18",
+        "dtuj",
+        "Upcoming"
+    )
+)
+
+
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class)

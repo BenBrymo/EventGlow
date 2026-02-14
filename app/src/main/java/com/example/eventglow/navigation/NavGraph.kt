@@ -7,7 +7,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.eventglow.SplashScreen
-import com.example.eventglow.admin_main_screen.AdminMainScreen
+import com.example.eventglow.admin_main_screen.AdminHomeScreen
 import com.example.eventglow.admin_main_screen.AdminProfileScreen
 import com.example.eventglow.common.create_account.createAccountScreen
 import com.example.eventglow.common.email_verification.EmailVerificationScreen
@@ -17,17 +17,17 @@ import com.example.eventglow.common.password_reset.passwordRecoveryScreen
 import com.example.eventglow.events_management.AdminSearchScreen
 import com.example.eventglow.events_management.CopyEventScreen
 import com.example.eventglow.events_management.CreateEventScreen
-import com.example.eventglow.events_management.DetailedEventScreenAdmin
 import com.example.eventglow.events_management.DraftedEventsScreen
 import com.example.eventglow.events_management.EditEventScreen
-import com.example.eventglow.events_management.EventsMgmtScreen
+import com.example.eventglow.events_management.EventDetailsAdminScreen
 import com.example.eventglow.events_management.FilterSearchScreenAdmin
 import com.example.eventglow.events_management.FilteredResultScreenAdmin
+import com.example.eventglow.events_management.ManageEventsScreen
 import com.example.eventglow.settings.SettingsScreen
 import com.example.eventglow.ticket_management.TicketManagementScreen
 import com.example.eventglow.user.UserMainScreen
-import com.example.eventts.user_management.UserManagementSearchScreen
-import com.example.eventts.user_management.UserMgmtScreen
+import com.example.eventglow.user_management.ManageUsersScreen
+import com.example.eventglow.user_management.UserManagementSearchScreen
 
 
 object Routes {
@@ -58,6 +58,7 @@ object Routes {
     const val USER_MANAGEMENT_SEARCH_SCREEN = "user_management_search_screen"
     const val SETTINGS = "settings_screen"
 }
+
 
 @Composable
 fun NavGraph(navController: NavHostController) {
@@ -96,7 +97,7 @@ fun NavGraph(navController: NavHostController) {
 
         // defines admin main screen route
         composable(Routes.ADMIN_MAIN_SCREEN) {
-            AdminMainScreen(navController = navController)
+            AdminHomeScreen(navController = navController)
         }
 
         //defines create admin profile screen route
@@ -106,7 +107,7 @@ fun NavGraph(navController: NavHostController) {
 
         //defines events management screen route
         composable(Routes.EVENTS_MANAGEMENT_SCREEN) {
-            EventsMgmtScreen(navController = navController)
+            ManageEventsScreen(navController = navController)
         }
 
 
@@ -130,7 +131,7 @@ fun NavGraph(navController: NavHostController) {
             route = "detailed_event_screen_admin/{eventId}",
             arguments = listOf(navArgument("eventId") { type = NavType.StringType })
         ) { backStackEntry ->
-            DetailedEventScreenAdmin(
+            EventDetailsAdminScreen(
                 navController = navController,
                 eventId = backStackEntry.arguments?.getString("eventId") ?: ""
             )
@@ -179,7 +180,7 @@ fun NavGraph(navController: NavHostController) {
 
 
         composable(Routes.USER_MANAGEMENT_SCREEN) {
-            UserMgmtScreen(navController = navController)
+            ManageUsersScreen(navController = navController)
         }
 
         composable(Routes.USER_MANAGEMENT_SEARCH_SCREEN) {

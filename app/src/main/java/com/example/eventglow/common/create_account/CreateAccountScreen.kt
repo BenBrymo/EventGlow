@@ -39,13 +39,12 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.R
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.AccentOrange
+import com.example.eventglow.ui.theme.BackgroundBlack
+import com.example.eventglow.ui.theme.FieldBorderGray
+import com.example.eventglow.ui.theme.HintGray
 import kotlinx.coroutines.launch
 
-
-val BackgroundBlack = Color(0xFF0F0F0F)
-val FieldBorderGray = Color(0xFF5A5A5A)
-val HintGray = Color(0xFF9E9E9E)
-val AccentOrange = Color(0xFFE65100)
 
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -1,4 +1,4 @@
-package com.example.eventts.user_management
+package com.example.eventglow.user_management
 
 
 import androidx.compose.foundation.clickable
@@ -23,7 +23,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventglow.dataClass.User
-import com.example.eventglow.user_management.UserManagementViewModel
 
 @Composable
 fun UserManagementSearchScreen(

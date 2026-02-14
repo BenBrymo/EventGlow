@@ -1,20 +1,171 @@
 package com.example.eventglow.ticket_management
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.eventglow.R
+import com.example.eventglow.ui.theme.AccentOrange
+import com.example.eventglow.ui.theme.BackgroundBlack
+import com.example.eventglow.ui.theme.FieldBorderGray
+import com.example.eventglow.ui.theme.HintGray
+
+
+@Composable
+fun ManageTicketsScreen(
+    onBackClick: () -> Unit = {},
+    onVerifyClick: () -> Unit = {},
+    navController: NavController
+) {
+
+    Scaffold(
+        containerColor = BackgroundBlack,
+        topBar = {
+            ManageTicketsTopBar(onBackClick)
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Search Field
+            SearchField()
+
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Illustration
+            Image(
+                painter = painterResource(id = R.drawable.applogo),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(220.dp)
+            )
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Heading
+            Text(
+                text = "Easily manage and verify tickets",
+                style = MaterialTheme.typography.headlineSmall,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(40.dp))
+
+            // Verify Button
+            Button(
+                onClick = onVerifyClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = AccentOrange
+                ),
+                shape = RoundedCornerShape(50),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp)
+            ) {
+                Text(
+                    text = "Verify Ticket",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ManageTicketsTopBar(
+    onBackClick: () -> Unit
+) {
+    TopAppBar(
+        title = {
+            Text(
+                text = "Manage Tickets",
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = onBackClick) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = null,
+                    tint = Color.White
+                )
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = BackgroundBlack
+        )
+    )
+}
+
+
+@Composable
+fun SearchField() {
+
+    var query by remember { mutableStateOf("") }
+
+    OutlinedTextField(
+        value = query,
+        onValueChange = { query = it },
+        placeholder = {
+            Text(
+                text = "Search events",
+                style = MaterialTheme.typography.bodyMedium,
+                color = HintGray
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = HintGray
+            )
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(50),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = FieldBorderGray,
+            unfocusedBorderColor = FieldBorderGray,
+            focusedContainerColor = Color(0xFF2A2A2A),
+            unfocusedContainerColor = Color(0xFF2A2A2A),
+            cursorColor = AccentOrange
+        ),
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
 
 @Composable
 fun TicketManagementScreen(navController: NavController) {

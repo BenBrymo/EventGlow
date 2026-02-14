@@ -1,9 +1,13 @@
 package com.example.eventglow.admin_main_screen
 
+
 import android.util.Log
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
@@ -16,19 +20,275 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.eventglow.R
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.BrandPrimary
+import com.example.eventglow.ui.theme.SurfaceLevel3
+import com.example.eventglow.ui.theme.TextPrimary
+import com.example.eventglow.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
+
+
+@Composable
+fun AdminHomeScreen(
+    userName: String = "BenBrymo",
+    upcomingEvents: List<Int> = listOf(R.drawable.applogo),
+    todayEvents: List<Int> = emptyList(),
+    onMenuClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
+    onEventClick: () -> Unit = {},
+    navController: NavController
+) {
+
+    Scaffold(
+        containerColor = Background,
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Background)
+                .padding(padding)
+        ) {
+
+            HomeHeader(userName, onMenuClick, onProfileClick)
+
+            Spacer(Modifier.height(12.dp))
+
+            DashboardCardsRow()
+
+            Spacer(Modifier.height(24.dp))
+
+            EventsSection(
+                title = "Upcoming Events",
+                events = upcomingEvents,
+                onEventClick = onEventClick
+            )
+
+            Spacer(Modifier.height(24.dp))
+
+            EventsSection(
+                title = "Events Today",
+                events = todayEvents,
+                onEventClick = onEventClick
+            )
+        }
+    }
+}
+
+
+@Composable
+fun HomeHeader(
+    userName: String,
+    onMenuClick: () -> Unit,
+    onProfileClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(SurfaceLevel3)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+
+        IconButton(onClick = onMenuClick) {
+            Icon(Icons.Default.Menu, null, tint = TextPrimary)
+        }
+
+        Text(
+            "Welcome $userName",
+            style = MaterialTheme.typography.titleLarge,
+            color = TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+
+        IconButton(onClick = onProfileClick) {
+            Icon(Icons.Default.AccountCircle, null, tint = TextPrimary)
+        }
+    }
+}
+
+
+@Composable
+fun DashboardCardsRow() {
+
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(3) {
+            DashboardCard(
+                title = if (it == 0) "Events" else "Tickets",
+                count = if (it == 0) "1" else "2"
+            )
+        }
+    }
+}
+
+
+@Composable
+fun DashboardCard(
+    title: String,
+    count: String
+) {
+    Box(
+        modifier = Modifier
+            .width(150.dp)
+            .height(130.dp)
+            .clip(RoundedCornerShape(18.dp))
+    ) {
+
+        Column {
+
+            // Top section
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(Color(0xFFEDEDED)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Event, null, tint = BrandPrimary)
+            }
+
+            // Bottom gradient section
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFFFF6F61),
+                                Color(0xFF8E24AA)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(title, color = Color.White)
+                    Text(count, color = Color.White)
+                }
+            }
+        }
+
+        // Curvy divider
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .align(Alignment.Center)
+        ) {
+
+            val path = Path().apply {
+                moveTo(0f, size.height / 2)
+
+                cubicTo(
+                    size.width * 0.25f, 0f,
+                    size.width * 0.75f, size.height,
+                    size.width, size.height / 2
+                )
+            }
+
+            drawPath(
+                path = path,
+                color = Color.White,
+                style = Stroke(width = 4.dp.toPx())
+            )
+        }
+    }
+}
+
+
+@Composable
+fun EventsSection(
+    title: String,
+    events: List<Int>,
+    onEventClick: () -> Unit
+) {
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            color = TextPrimary
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        if (events.isEmpty()) {
+
+            Text(
+                "No events available",
+                color = TextSecondary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+        } else {
+
+            events.forEach {
+                EventCard(it, onEventClick)
+            }
+        }
+    }
+}
+
+
+@Composable
+fun EventCard(
+    imageRes: Int,
+    onClick: () -> Unit
+) {
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(210.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+    ) {
+
+        Image(
+            painterResource(imageRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(12.dp)
+                .background(BrandPrimary, RoundedCornerShape(20.dp))
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text("Free", color = Color.White)
+        }
+    }
+}
+
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminMainScreen(
+fun AdminMainScreen2(
     navController: NavController,
     sharedPreferencesViewModel: SharedPreferencesViewModel = viewModel()
 ) {
@@ -236,3 +496,9 @@ private fun NavigationItem(
     }
 }
 
+
+@Preview
+@Composable
+fun HomeScreenPreview() {
+    HomeScreen()
+}

@@ -24,14 +24,14 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.AccentOrange
+import com.example.eventglow.ui.theme.BorderGray
+import com.example.eventglow.ui.theme.HintGray
+import com.example.eventglow.ui.theme.ScreenBlack
+import com.example.eventglow.ui.theme.TopBarGray
 import kotlinx.coroutines.launch
 
 
-val ScreenBlack = Color(0xFF0F0F0F)
-val TopBarGray = Color(0xFF3A3A3A)
-val BorderGray = Color(0xFF5A5A5A)
-val HintGray = Color(0xFF9E9E9E)
-val AccentOrange = Color(0xFFE65100)
 
 
 @OptIn(ExperimentalMaterial3Api::class)

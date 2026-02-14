@@ -2,14 +2,18 @@ package com.example.eventglow.events_management
 
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +28,323 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
+import com.example.eventglow.ui.theme.AppBlack
+import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.BrandPrimary
+import com.example.eventglow.ui.theme.CardGray
+import com.example.eventglow.ui.theme.Success
+import com.example.eventglow.ui.theme.SurfaceLevel2
+import com.example.eventglow.ui.theme.TextPrimary
+import com.example.eventglow.ui.theme.TextSecondary
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EventDetailsAdminScreen(
+    eventId: String,
+    title: String = "bjj",
+    dateLabel: String = "Wednesday",
+    dateValue: String = "18 Feb",
+    time: String = "5:00 PM",
+    duration: String = "2 hr 30 min",
+    venue: String = "dtuj",
+    description: String = "fhkkllll",
+    onBack: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    onCopy: () -> Unit = {},
+    onDeleteConfirmed: () -> Unit = {},
+    onManageTickets: () -> Unit = {},
+    navController: NavController
+) {
+
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    Scaffold(
+        containerColor = Background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Event Details",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = null,
+                            tint = TextPrimary
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            Icons.Default.MoreVert,
+                            contentDescription = null,
+                            tint = TextPrimary
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier.background(CardGray)
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit") },
+                            onClick = {
+                                menuExpanded = false
+                                onEdit()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Copy") },
+                            onClick = {
+                                menuExpanded = false
+                                onCopy()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete") },
+                            onClick = {
+                                menuExpanded = false
+                                showDeleteDialog = true
+                            }
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = AppBlack,
+                    titleContentColor = TextPrimary
+                )
+            )
+        },
+        bottomBar = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Button(
+                    onClick = onManageTickets,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = BrandPrimary
+                    )
+                ) {
+                    Text(
+                        "Manage Tickets",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TextPrimary
+                    )
+                }
+            }
+        }
+    ) { padding ->
+
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+
+            Spacer(Modifier.height(12.dp))
+
+            // image
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(230.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(SurfaceLevel2)
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            FreeEventChip()
+
+            Spacer(Modifier.height(12.dp))
+
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                color = TextPrimary
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    dateLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                Text(
+                    dateValue,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            InfoBlock("Time", time)
+            InfoBlock("Duration", duration)
+            InfoBlock("Venue", venue)
+            InfoBlock("Description", description)
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                "Tickets",
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            TicketChip()
+
+            Spacer(Modifier.height(90.dp))
+        }
+    }
+
+    if (showDeleteDialog) {
+        DeleteEventDialog(
+            eventName = title,
+            onCancel = { showDeleteDialog = false },
+            onDelete = {
+                showDeleteDialog = false
+                onDeleteConfirmed()
+            }
+        )
+    }
+}
+
+
+@Composable
+private fun FreeEventChip() {
+    Box(
+        modifier = Modifier
+            .background(
+                color = Success,
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Text(
+            "FREE EVENT",
+            style = MaterialTheme.typography.labelMedium,
+            color = TextPrimary
+        )
+    }
+}
+
+
+@Composable
+private fun InfoBlock(
+    title: String,
+    value: String
+) {
+    Column(
+        modifier = Modifier.padding(bottom = 16.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            color = TextPrimary
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary
+        )
+    }
+}
+
+
+@Composable
+private fun TicketChip() {
+    Row(
+        modifier = Modifier
+            .background(
+                color = CardGray,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .background(
+                    color = Success,
+                    shape = RoundedCornerShape(10.dp)
+                )
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Text(
+                "FREE",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextPrimary
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun DeleteEventDialog(
+    eventName: String,
+    onCancel: () -> Unit,
+    onDelete: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        containerColor = CardGray,
+        title = {
+            Text(
+                "Delete Event",
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Text(
+                "Are you sure you want to delete the event \"$eventName\"? This action cannot be undone.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDelete) {
+                Text(
+                    "Delete",
+                    color = BrandPrimary
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(
+                    "Cancel",
+                    color = TextSecondary
+                )
+            }
+        }
+    )
+}
 
 
 @OptIn(ExperimentalMaterial3Api::class)
