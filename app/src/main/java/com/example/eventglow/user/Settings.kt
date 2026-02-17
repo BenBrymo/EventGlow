@@ -17,8 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BorderStrong
 import com.example.eventglow.ui.theme.BrandPrimary
@@ -568,4 +570,16 @@ fun SettingsItem2(
             )
         }
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SettingsScreenPreview() {
+    SettingsScreen(navController = rememberNavController())
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SettingsScreen2Preview() {
+    SettingsScreen2(navController = rememberNavController())
 }

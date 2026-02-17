@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -160,3 +161,9 @@ fun BottomNavGraph(
 }
 
 data class BottomNavItem(val label: String, val icon: ImageVector, val route: String)
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun UserMainScreenPreview() {
+    UserMainScreen(navController = rememberNavController())
+}

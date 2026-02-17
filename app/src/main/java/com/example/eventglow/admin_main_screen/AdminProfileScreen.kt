@@ -2,7 +2,6 @@ package com.example.eventglow.admin_main_screen
 
 import android.net.Uri
 import android.util.Log
-import android.widget.ImageView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -25,22 +24,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
-import coil.ImageLoader
 import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
 import com.example.eventglow.MainActivityViewModel
+import com.example.eventglow.R
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
-import com.example.eventglow.R
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -114,33 +108,43 @@ fun AdminProfileScreen(
         }
     }
 
-    @Composable
-    fun loadImageFromUri(uri: Uri?) {
-        val context = LocalContext.current
+    AdminProfileScreenContent(
+        username = username,
+        headerImageData = headerPictureUrl,
+        profileImageData = profilePictureUrl,
+        onHeaderImageClick = { headerImagePickerLauncher.launch("image/*") },
+        onProfileImageClick = { profileImagePickerLauncher.launch("image/*") },
+        onDraftedEvents = { navController.navigate(Routes.DRAFTED_EVENTS_SCREEN) },
+        onHistory = { /* Navigate to History */ },
+        onStatistics = { /* Navigate to Statistics */ },
+        onLogout = {
+            mainActivityViewModel.signOut(
+                onSuccess = {
+                    navController.navigate(Routes.LOGIN_SCREEN) {
+                        popUpTo(Routes.ADMIN_PROFILE_SCREEN) {
+                            inclusive = true // Clear the back stack to avoid returning to the Profile Screen
+                        }
+                    }
+                },
+                onError = { Log.d("Log Out AdminProfile Screen ", "Could not log out") }
+            )
+        }
+    )
+}
 
-        val imageLoader = remember { ImageLoader.Builder(context).build() }
-
-        AndroidView(
-            factory = {
-                ImageView(it).apply {
-                    // Optional: Set a placeholder or error image
-                    setImageResource(R.drawable.user_logo)
-                }
-            },
-            update = { imageView ->
-                uri?.let {
-                    val request = ImageRequest.Builder(context)
-                        .data(uri)
-                        .target(imageView)
-                        .build()
-                    imageLoader.enqueue(request)
-                }
-            }
-        )
-
-    }
-
-
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AdminProfileScreenContent(
+    username: String?,
+    headerImageData: Any?,
+    profileImageData: Any?,
+    onHeaderImageClick: () -> Unit,
+    onProfileImageClick: () -> Unit,
+    onDraftedEvents: () -> Unit,
+    onHistory: () -> Unit,
+    onStatistics: () -> Unit,
+    onLogout: () -> Unit
+) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -157,15 +161,12 @@ fun AdminProfileScreen(
             ) {
                 //Header image
                 Image(
-                    painter = rememberAsyncImagePainter(headerPictureUrl),
+                    painter = rememberAsyncImagePainter(headerImageData),
                     contentDescription = "Header Image",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(300.dp)
-                        .clickable {
-                            // Launch image picker
-                            headerImagePickerLauncher.launch("image/*")
-                        },
+                        .clickable(onClick = onHeaderImageClick),
                     contentScale = ContentScale.Crop
                 )
             }
@@ -177,26 +178,22 @@ fun AdminProfileScreen(
             Row(
                 modifier = Modifier,
             ) {
-
                 //Profile Image
-                Column() {
+                Column {
                     // Displays profile image if it exists
-                    if (profilePictureUrl != null) {
-                        Log.d("ProfilePicture", "Loading image from $profilePictureUrl")
+                    if (profileImageData != null) {
+                        Log.d("ProfilePicture", "Loading image from $profileImageData")
                         Card(
                             elevation = CardDefaults.cardElevation(8.dp),
                             shape = RoundedCornerShape(50)
                         ) {
                             Image(
-                                painter = rememberAsyncImagePainter(profilePictureUrl),
+                                painter = rememberAsyncImagePainter(profileImageData),
                                 contentDescription = "Admin Avatar",
                                 modifier = Modifier
                                     .size(100.dp)
                                     .clip(CircleShape)
-                                    .clickable {
-                                        // Launch image picker
-                                        profileImagePickerLauncher.launch("image/*")
-                                    },
+                                    .clickable(onClick = onProfileImageClick),
                                 contentScale = ContentScale.Crop,
                             )
                         }
@@ -208,10 +205,7 @@ fun AdminProfileScreen(
                                 .size(100.dp)
                                 .clip(CircleShape)
                                 .background(MaterialTheme.colorScheme.surface)
-                                .clickable {
-                                    // Launch image picker
-                                    profileImagePickerLauncher.launch("image/*")
-                                }
+                                .clickable(onClick = onProfileImageClick)
                         )
                     }
                 }
@@ -231,7 +225,6 @@ fun AdminProfileScreen(
         }
         //Menu items
         item {
-
             Spacer(modifier = Modifier.height(16.dp))
             // Scrollable Menu Items
             Column(
@@ -241,40 +234,26 @@ fun AdminProfileScreen(
                 MenuItem(
                     icon = Icons.Default.Event,
                     title = "Drafted Events",
-                    // Navigates to Drafted events screen
-                    onClick = { navController.navigate(Routes.DRAFTED_EVENTS_SCREEN) }
+                    onClick = onDraftedEvents
                 )
 
                 // History menu item
                 MenuItem(
                     icon = Icons.Default.History,
                     title = "History",
-                    onClick = { /* Navigate to History */ }
+                    onClick = onHistory
                 )
                 // Statistics menu item
                 MenuItem(
                     icon = Icons.Default.Analytics,
                     title = "Statistics",
-                    onClick = { /* Navigate to Statistics */ }
+                    onClick = onStatistics
                 )
                 // Log out menu item
                 MenuItem(
                     icon = Icons.AutoMirrored.Filled.Logout,
                     title = "Log Out",
-                    // Performs log out operation
-                    onClick = {
-                        mainActivityViewModel.signOut(
-                            onSuccess = {
-                                navController.navigate(Routes.LOGIN_SCREEN) {
-                                    popUpTo(Routes.ADMIN_PROFILE_SCREEN) {
-                                        inclusive =
-                                            true // Clear the back stack to avoid returning to the Profile Screen
-                                    }
-                                }
-                            },
-                            onError = { Log.d("Log Out AdminProfile Screen ", "Could not log out") }
-                        )
-                    }
+                    onClick = onLogout
                 )
             }
         }
@@ -297,8 +276,18 @@ fun MenuItem(icon: ImageVector, title: String, onClick: () -> Unit) {
     }
 }
 
-@Preview
+@Preview(showBackground = true)
 @Composable
 fun AdminProfileScreenPreview() {
-    AdminProfileScreen(navController = rememberNavController())
+    AdminProfileScreenContent(
+        username = "Admin User",
+        headerImageData = R.drawable.applogo,
+        profileImageData = R.drawable.user_logo,
+        onHeaderImageClick = {},
+        onProfileImageClick = {},
+        onDraftedEvents = {},
+        onHistory = {},
+        onStatistics = {},
+        onLogout = {}
+    )
 }

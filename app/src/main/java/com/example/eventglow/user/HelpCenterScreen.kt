@@ -262,7 +262,7 @@ fun FAQDetailBottomSheet(faq: String) {
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun HelpCenterScreenPreview() {
     HelpCenterScreen(navController = rememberNavController())

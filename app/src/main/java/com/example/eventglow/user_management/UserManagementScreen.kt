@@ -32,9 +32,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.example.eventglow.dataClass.User
@@ -555,8 +557,7 @@ fun UserMgmtScreen(
 fun UsersManagementContent(
     navController: NavController,
     users: List<User>,
-    onAddUserButtonClick: () -> Unit,
-    viewModel: UserManagementViewModel = viewModel()
+    onAddUserButtonClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -775,4 +776,85 @@ fun UserItem(
         }
     }
 
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ManageUsersScreenPreview() {
+    ManageUsersScreen(
+        users = listOf(
+            UserUi(name = "Alice", role = "admin"),
+            UserUi(name = "Brian", role = "user")
+        ),
+        navController = rememberNavController()
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SearchUsersFieldPreview() {
+    SearchUsersField(
+        value = "Ali",
+        onValueChange = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun UserRowUiPreview() {
+    UserRow(
+        user = UserUi(name = "Alice", role = "admin"),
+        onClick = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun UsersManagementContentPreview() {
+    UsersManagementContent(
+        navController = rememberNavController(),
+        users = listOf(
+            User(
+                id = "u1",
+                userName = "Alice",
+                email = "alice@example.com",
+                role = "admin",
+                isSuspended = false
+            ),
+            User(
+                id = "u2",
+                userName = "Brian",
+                email = "brian@example.com",
+                role = "user",
+                isSuspended = true
+            )
+        ),
+        onAddUserButtonClick = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SearchBarUserPreview() {
+    SearchBarUser(navController = rememberNavController())
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun AddUserButtonPreview() {
+    AddUserButton(onClick = {})
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun UserItemPreview() {
+    UserItem(
+        user = User(
+            id = "u3",
+            userName = "Claire",
+            email = "claire@example.com",
+            role = "user",
+            isSuspended = false
+        )
+    )
 }

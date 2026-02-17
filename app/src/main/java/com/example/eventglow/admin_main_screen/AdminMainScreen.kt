@@ -3,7 +3,6 @@ package com.example.eventglow.admin_main_screen
 
 import android.util.Log
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,8 +13,10 @@ import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,13 +27,15 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.eventglow.R
+import coil.compose.AsyncImage
+import com.example.eventglow.common.LoadState
 import com.example.eventglow.common.SharedPreferencesViewModel
+import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BrandPrimary
@@ -44,18 +47,84 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun AdminHomeScreen(
+    navController: NavController,
+    sharedPreferencesViewModel: SharedPreferencesViewModel = viewModel(),
+    adminViewModel: AdminViewModel = viewModel()
+) {
+    val userData by sharedPreferencesViewModel.userInfo.collectAsState()
+    val userName = userData["USERNAME"] ?: "Admin"
+    val uiState by adminViewModel.adminHomeUiState.collectAsState()
+    val loadState by adminViewModel.loadState.collectAsState()
+    val errorMessage by adminViewModel.errorMessage.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(errorMessage) {
+        val message = errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        adminViewModel.clearError()
+    }
+
+    AdminHomeContent(
+        userName = userName,
+        upcomingEvents = uiState.upcomingEvents,
+        todayEvents = uiState.todayEvents,
+        totalEvents = uiState.totalEvents,
+        totalTickets = uiState.totalTickets,
+        loadState = loadState,
+        snackbarHostState = snackbarHostState,
+        onProfileClick = { navController.navigate(Routes.ADMIN_PROFILE_SCREEN) },
+        onEventClick = { event -> navController.navigate("detailed_event_screen_admin/${event.id}") }
+    )
+}
+
+@Composable
+fun AdminHomeContent(
     userName: String = "BenBrymo",
-    upcomingEvents: List<Int> = listOf(R.drawable.applogo),
-    todayEvents: List<Int> = emptyList(),
+    upcomingEvents: List<Event> = emptyList(),
+    todayEvents: List<Event> = emptyList(),
+    totalEvents: Int = 0,
+    totalTickets: Int = 0,
+    loadState: LoadState = LoadState.SUCCESS,
+    snackbarHostState: SnackbarHostState? = null,
     onMenuClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
-    onEventClick: () -> Unit = {},
-    navController: NavController
+    onEventClick: (Event) -> Unit = {}
 ) {
-
     Scaffold(
         containerColor = Background,
+        snackbarHost = {
+            snackbarHostState?.let { SnackbarHost(hostState = it) }
+        }
     ) { padding ->
+
+        if (loadState == LoadState.LOADING) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Background)
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+        if (loadState == LoadState.FAILURE) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Background)
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Failed to load dashboard data",
+                    color = TextPrimary,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+            return@Scaffold
+        }
 
         Column(
             modifier = Modifier
@@ -68,7 +137,10 @@ fun AdminHomeScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            DashboardCardsRow()
+            DashboardCardsRow(
+                totalEvents = totalEvents,
+                totalTickets = totalTickets
+            )
 
             Spacer(Modifier.height(24.dp))
 
@@ -124,15 +196,22 @@ fun HomeHeader(
 
 @Composable
 fun DashboardCardsRow() {
+    DashboardCardsRow(totalEvents = 0, totalTickets = 0)
+}
 
+@Composable
+fun DashboardCardsRow(
+    totalEvents: Int,
+    totalTickets: Int
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        items(3) {
+        items(2) {
             DashboardCard(
                 title = if (it == 0) "Events" else "Tickets",
-                count = if (it == 0) "1" else "2"
+                count = if (it == 0) totalEvents.toString() else totalTickets.toString()
             )
         }
     }
@@ -217,8 +296,8 @@ fun DashboardCard(
 @Composable
 fun EventsSection(
     title: String,
-    events: List<Int>,
-    onEventClick: () -> Unit
+    events: List<Event>,
+    onEventClick: (Event) -> Unit
 ) {
 
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -241,8 +320,8 @@ fun EventsSection(
 
         } else {
 
-            events.forEach {
-                EventCard(it, onEventClick)
+            events.forEach { event ->
+                EventCard(event = event, onClick = { onEventClick(event) })
             }
         }
     }
@@ -251,7 +330,7 @@ fun EventsSection(
 
 @Composable
 fun EventCard(
-    imageRes: Int,
+    event: Event,
     onClick: () -> Unit
 ) {
 
@@ -263,8 +342,8 @@ fun EventCard(
             .clickable(onClick = onClick)
     ) {
 
-        Image(
-            painterResource(imageRes),
+        AsyncImage(
+            model = event.imageUri,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -277,7 +356,8 @@ fun EventCard(
                 .background(BrandPrimary, RoundedCornerShape(20.dp))
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
-            Text("Free", color = Color.White)
+            val freeLabel = event.ticketTypes.any { it.price <= 0.0 }
+            Text(if (freeLabel) "Free" else "Paid", color = Color.White)
         }
     }
 }
@@ -494,4 +574,72 @@ private fun NavigationItem(
         )
     }
 }
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun AdminHomeScreenPreview() {
+    AdminHomeContent(
+        userName = "Admin User",
+        upcomingEvents = listOf(
+            Event(id = "1", eventName = "Music Night", imageUri = "", ticketTypes = emptyList()),
+            Event(id = "2", eventName = "Tech Expo", imageUri = "", ticketTypes = emptyList())
+        ),
+        todayEvents = emptyList(),
+        totalEvents = 12,
+        totalTickets = 420,
+        loadState = LoadState.SUCCESS
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun HomeHeaderPreview() {
+    HomeHeader(
+        userName = "Admin User",
+        onMenuClick = {},
+        onProfileClick = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun DashboardCardPreview() {
+    DashboardCard(
+        title = "Events",
+        count = "12"
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventsSectionEmptyPreview() {
+    EventsSection(
+        title = "Upcoming Events",
+        events = emptyList(),
+        onEventClick = { }
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventsSectionWithDataPreview() {
+    EventsSection(
+        title = "Upcoming Events",
+        events = listOf(
+            Event(id = "1", eventName = "Open Air", imageUri = ""),
+            Event(id = "2", eventName = "Sport Day", imageUri = "")
+        ),
+        onEventClick = { }
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventCardPreview() {
+    EventCard(
+        event = Event(id = "1", eventName = "Open Air", imageUri = ""),
+        onClick = {}
+    )
+}
+
 

@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
@@ -40,48 +39,65 @@ fun AdminSearchScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredEvents by viewModel.filteredEvents.collectAsState()
 
-    //screen content
+    AdminSearchContent(
+        searchQuery = searchQuery,
+        filteredEvents = filteredEvents,
+        onSearchQueryChange = viewModel::onSearchQueryChange,
+        onBackClick = { navController.popBackStack() },
+        onFilterClick = { navController.navigate(Routes.FILTER_SEARCH_SCREEN_ADMIN) },
+        onEventClick = { event -> navController.navigate("detailed_event_screen_admin/${event.id}") },
+        formatDate = viewModel::convertToFormattedDate
+    )
+}
+
+@Composable
+fun AdminSearchContent(
+    searchQuery: String,
+    filteredEvents: List<Event>,
+    onSearchQueryChange: (String) -> Unit,
+    onBackClick: () -> Unit,
+    onFilterClick: () -> Unit,
+    onEventClick: (Event) -> Unit,
+    formatDate: (String) -> Pair<Pair<String, String>, String>
+) {
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
-        //Search Bar
         TextField(
             value = searchQuery,
             placeholder = { Text(text = "Search Event name,venue...") },
-            onValueChange = { query ->
-                viewModel.onSearchQueryChange(query)
-            },
+            onValueChange = onSearchQueryChange,
             leadingIcon = {
-                IconButton(
-                    //navigates back to previous screen
-                    onClick = { navController.popBackStack() }
-                ) {
+                IconButton(onClick = onBackClick) {
                     Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate Back")
                 }
             },
             trailingIcon = {
-                IconButton(
-                    //navigates to filter search screen
-                    onClick = { navController.navigate(Routes.FILTER_SEARCH_SCREEN_ADMIN) }
-                ) {
+                IconButton(onClick = onFilterClick) {
                     Icon(imageVector = Icons.Default.FilterList, contentDescription = "Filter List")
                 }
             },
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(16.dp))
-
-        // container to keep filterd results
         LazyColumn {
             items(filteredEvents) { event ->
-                EventRow(event = event, onClick = { navController.navigate("detailed_event_screen_admin/${event.id}") })
+                EventRow(
+                    event = event,
+                    onClick = onEventClick,
+                    formatDate = formatDate
+                )
             }
         }
     }
 }
 
 @Composable
-fun EventRow(event: Event, onClick: (Event) -> Unit, viewModel: EventsManagementViewModel = viewModel()) {
+fun EventRow(
+    event: Event,
+    onClick: (Event) -> Unit,
+    formatDate: (String) -> Pair<Pair<String, String>, String>
+) {
     //container for event row
     Row(
         modifier = Modifier
@@ -116,8 +132,8 @@ fun EventRow(event: Event, onClick: (Event) -> Unit, viewModel: EventsManagement
         ) {
 
             // Event details directly below the image
-            val formattedStartDate = viewModel.convertToFormattedDate(event.startDate)
-            val formattedEndDate = viewModel.convertToFormattedDate(event.endDate)
+            val formattedStartDate = formatDate(event.startDate)
+            val formattedEndDate = formatDate(event.endDate)
 
             val dayOfWeekStart = formattedStartDate.first.first
             val monthStart = formattedStartDate.first.second
@@ -199,8 +215,27 @@ fun MyAppTheme(content: @Composable () -> Unit) {
 }
 
 
-@Preview
+@Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun ScreenPreview() {
-    AdminSearchScreen(navController = rememberNavController())
+    AdminSearchContent(
+        searchQuery = "",
+        filteredEvents = listOf(
+            Event(
+                id = "1",
+                eventName = "Tech Conference",
+                startDate = "20/2/2026",
+                endDate = "20/2/2026",
+                eventVenue = "Accra",
+                eventStatus = "Upcoming",
+                eventCategory = "Tech",
+                imageUri = ""
+            )
+        ),
+        onSearchQueryChange = {},
+        onBackClick = {},
+        onFilterClick = {},
+        onEventClick = {},
+        formatDate = { ("Wed" to "Feb") to "20" }
+    )
 }

@@ -21,10 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
@@ -36,6 +38,7 @@ import com.example.eventglow.ui.theme.Success
 import com.example.eventglow.ui.theme.SurfaceLevel2
 import com.example.eventglow.ui.theme.TextPrimary
 import com.example.eventglow.ui.theme.TextSecondary
+
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -586,4 +589,45 @@ fun TicketTypeCard(
             )
         }
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventDetailsAdminScreenPreview() {
+    EventDetailsAdminScreen(
+        eventId = "ev_1",
+        title = "Tech Expo 2026",
+        dateLabel = "Wednesday",
+        dateValue = "18 Feb",
+        time = "5:00 PM",
+        duration = "2 hr 30 min",
+        venue = "Accra International Center",
+        description = "A tech showcase for startups and creators.",
+        navController = rememberNavController()
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun DetailedEventContentPreview() {
+    DetailedEventContent(
+        event = Event(
+            id = "ev_2",
+            eventName = "Music Festival",
+            startDate = "20/2/2026",
+            endDate = "20/2/2026",
+            isMultiDayEvent = false,
+            eventTime = "7:30 PM",
+            eventVenue = "Kumasi Sports Arena",
+            eventStatus = "Upcoming",
+            eventCategory = "Music",
+            ticketTypes = listOf(
+                TicketType(name = "Regular", price = 50.0, availableTickets = 200),
+                TicketType(name = "VIP", price = 120.0, availableTickets = 50)
+            ),
+            imageUri = "",
+            eventDescription = "Live performances by local and international artists."
+        ),
+        chosenTicketType = {}
+    )
 }

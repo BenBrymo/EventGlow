@@ -27,9 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.MainActivityViewModel
@@ -328,4 +330,13 @@ fun MenuItem(icon: ImageVector, title: String, onClick: () -> Unit) {
         Spacer(modifier = Modifier.width(16.dp))
         Text(text = title, style = MaterialTheme.typography.bodyLarge)
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ProfileScreenPreview() {
+    ProfileScreen(
+        mainNavController = rememberNavController(),
+        bottomNavController = rememberNavController()
+    )
 }

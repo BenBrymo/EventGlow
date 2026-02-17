@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -262,4 +263,100 @@ fun FilterSearchScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun FilterSearchScreenContentPreviewOnly() {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Filter Events", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = {}) {
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                item {
+                    Text("Event Status", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(
+                        value = "Upcoming",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Event Status") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                item {
+                    Text("Event Category", style = MaterialTheme.typography.titleMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {},
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Blue)
+                        ) { Text("Music", color = Color.White) }
+                        Button(
+                            onClick = {},
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
+                        ) { Text("Tech", color = Color.White) }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                item {
+                    OutlinedTextField(
+                        value = "16/2/2026",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Select Start Date") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = "18/2/2026",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Select End Date") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = true, onCheckedChange = {})
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Event should match all criteria", style = MaterialTheme.typography.bodyLarge)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                item {
+                    Button(
+                        onClick = {},
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth()
+                    ) {
+                        Text("Search")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun FilterSearchScreenPreview() {
+    FilterSearchScreenContentPreviewOnly()
+}
 

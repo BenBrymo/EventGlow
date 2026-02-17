@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.eventglow.R
 import com.example.eventglow.ui.theme.Background
@@ -204,4 +205,10 @@ private fun UpdateProfileTextField(
             unfocusedTextColor = TextPrimary
         )
     )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun UpdateProfileScreenPreview() {
+    UpdateProfileScreen()
 }

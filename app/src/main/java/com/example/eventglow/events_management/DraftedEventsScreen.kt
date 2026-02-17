@@ -20,10 +20,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.Event
 
@@ -300,5 +302,47 @@ fun EventItemDrafted(
             }
         }
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun DraftedEventsMgtPreview() {
+    DraftedEventsMgt(
+        navController = rememberNavController(),
+        draftedEvents = listOf(
+            Event(
+                id = "e1",
+                eventName = "Street Food Fest",
+                startDate = "18/2/2026",
+                endDate = "18/2/2026",
+                eventTime = "6:00 PM",
+                eventVenue = "Tema",
+                eventStatus = "Draft",
+                imageUri = ""
+            )
+        ),
+        onDeleteEventClick = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventItemDraftedPreview() {
+    EventItemDrafted(
+        event = Event(
+            id = "e2",
+            eventName = "Indie Music Night",
+            startDate = "19/2/2026",
+            endDate = "19/2/2026",
+            eventTime = "8:30 PM",
+            eventVenue = "Kumasi",
+            eventStatus = "Draft",
+            imageUri = ""
+        ),
+        onEventClick = {},
+        onDeleteClick = {},
+        onEditClick = {},
+        onCopyClick = {}
+    )
 }
 

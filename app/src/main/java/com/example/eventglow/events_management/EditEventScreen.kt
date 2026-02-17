@@ -27,6 +27,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -1339,5 +1340,19 @@ fun RealEventImageCardEdit(
                 }
         )
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventImageSectionEditPreview() {
+    EventImageSectionEdit(
+        imageUri = null,
+        onPickImageClick = {},
+        realEventImages = mapOf(
+            "Concerts" to listOf(""),
+            "Conferences" to listOf("")
+        ),
+        onImageSelected = {}
+    )
 }
 

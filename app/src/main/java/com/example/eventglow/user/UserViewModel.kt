@@ -70,6 +70,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
         firestore.collection("events")
             .whereEqualTo("isDraft", false) // Filter out drafted events
+            .whereEqualTo("isImportant", true) // Only fetch important events for featured section
             .get()
             .addOnSuccessListener { result ->
                 val nonDraftedList = mutableListOf<Event>()
@@ -97,6 +98,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                         } ?: listOf(),
                         imageUri = data["imageUri"] as? String ?: "",
                         isDraft = data["isDraft"] as? Boolean ?: false,
+                        isImportant = data["isImportant"] as? Boolean ?: false,
                         eventOrganizer = data["eventOrganizer"] as? String ?: "",
                         eventDescription = data["eventDescription"] as? String ?: ""
                     )

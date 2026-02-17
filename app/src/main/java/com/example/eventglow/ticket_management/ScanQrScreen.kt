@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.eventglow.ui.theme.AccentOrange
 import com.example.eventglow.ui.theme.BackgroundBlack
@@ -114,4 +115,28 @@ fun CameraPreview(
         modifier = modifier
             .background(Color.Black)
     )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ScanQrScreenPreview() {
+    ScanQrScreen(onBackClick = {})
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ScanTopBarPreview() {
+    ScanTopBar(onBackClick = {})
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ScannerOverlayPreview() {
+    ScannerOverlay()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun CameraPreviewPreview() {
+    CameraPreview(modifier = Modifier.size(240.dp))
 }

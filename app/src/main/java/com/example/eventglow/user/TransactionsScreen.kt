@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -175,4 +176,37 @@ fun TransactionDetailRow(label: String, value: String) {
         )
         Text(text = value)
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun TransactionItemPreview() {
+    TransactionItem(
+        transaction = Transaction(
+            id = "tx_1",
+            status = "success",
+            amount = "120.00",
+            currency = "GHS",
+            paidAt = "2026-02-16T12:00:00",
+            reference = "REF123",
+            channel = "card"
+        ),
+        onClick = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun TransactionDetailsPreview() {
+    TransactionDetails(
+        transaction = Transaction(
+            id = "tx_2",
+            status = "success",
+            amount = "75.00",
+            currency = "GHS",
+            paidAt = "2026-02-16T10:30:00",
+            reference = "REF456",
+            channel = "mobile_money"
+        )
+    )
 }

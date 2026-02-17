@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -386,4 +387,36 @@ private fun searchBar(navController: NavController) {
             cursorColor = MaterialTheme.colorScheme.primary
         )
     )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun FeaturedEventCardPreview() {
+    FeaturedEventCard(
+        eventImageUrl = "",
+        eventTitle = "Featured Tech Expo",
+        onClick = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventCardPreview() {
+    EventCard(
+        event = Event(
+            id = "ev_1",
+            eventName = "Music Night",
+            startDate = "16/2/2026",
+            endDate = "16/2/2026",
+            eventCategory = "Music",
+            imageUri = ""
+        ),
+        onEventClicked = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun IndicatorDotPreview() {
+    IndicatorDot(isSelected = true)
 }

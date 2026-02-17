@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -32,15 +33,32 @@ fun UserManagementSearchScreen(
     val searchQuery by userViewModel.searchQueryUser.collectAsState()
     val users by userViewModel.filteredUsers.collectAsState()
 
+    UserManagementSearchContent(
+        searchQuery = searchQuery,
+        users = users,
+        onSearchQueryChange = userViewModel::onSearchQueryChangeUser,
+        onBackClick = { navController.popBackStack() },
+        onUserClick = {}
+    )
+}
+
+@Composable
+fun UserManagementSearchContent(
+    searchQuery: String,
+    users: List<User>,
+    onSearchQueryChange: (String) -> Unit,
+    onBackClick: () -> Unit,
+    onUserClick: (User) -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
         TextField(
             value = searchQuery,
             placeholder = { Text(text = "Search Users") },
-            onValueChange = { query -> userViewModel.onSearchQueryChangeUser(query) },
+            onValueChange = onSearchQueryChange,
             leadingIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
+                IconButton(onClick = onBackClick) {
                     Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate Back")
                 }
             },
@@ -49,7 +67,7 @@ fun UserManagementSearchScreen(
         Spacer(modifier = Modifier.height(16.dp))
         LazyColumn {
             items(users) { user ->
-                UserRow(user = user, onClick = { })
+                UserRow(user = user, onClick = onUserClick)
             }
         }
     }
@@ -115,5 +133,47 @@ fun UserRow(user: User, onClick: (User) -> Unit) {
             )
         }
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun UserManagementSearchContentPreview() {
+    UserManagementSearchContent(
+        searchQuery = "ali",
+        users = listOf(
+            User(
+                id = "u1",
+                userName = "Alice",
+                email = "alice@example.com",
+                role = "admin",
+                isSuspended = false
+            ),
+            User(
+                id = "u2",
+                userName = "Alina",
+                email = "alina@example.com",
+                role = "user",
+                isSuspended = true
+            )
+        ),
+        onSearchQueryChange = {},
+        onBackClick = {},
+        onUserClick = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun UserRowPreview() {
+    UserRow(
+        user = User(
+            id = "u3",
+            userName = "Kelvin",
+            email = "kelvin@example.com",
+            role = "user",
+            isSuspended = false
+        ),
+        onClick = {}
+    )
 }
 

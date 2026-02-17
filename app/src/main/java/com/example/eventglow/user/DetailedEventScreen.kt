@@ -770,7 +770,7 @@ fun TicketTypeCard(
 }
 
 
-@Preview
+@Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun EventDetailsScreenPreview() {
     EventDetailsScreen()

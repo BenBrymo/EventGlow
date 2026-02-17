@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.eventglow.ui.theme.AccentOrange
 import com.example.eventglow.ui.theme.BackgroundBlack
@@ -24,6 +25,7 @@ import com.example.eventglow.ui.theme.HintGray
 
 @Composable
 fun AnalyticsScreen() {
+
 
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -208,4 +210,43 @@ fun RevenueCard() {
             )
         }
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun AnalyticsScreenPreview() {
+    AnalyticsScreen()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun TopBalanceBarPreview() {
+    TopBalanceBar()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SearchWithActionPreview() {
+    SearchWithAction()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventsTabsPreview() {
+    EventsTabs(
+        selectedTab = 0,
+        onTabSelected = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EmptyStatePreview() {
+    EmptyState()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun RevenueCardPreview() {
+    RevenueCard()
 }

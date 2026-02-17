@@ -452,7 +452,7 @@ fun BookmarkEventItem(
 }
 
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun BookmarkScreenPreview() {
     BookmarkScreen2(navController = rememberNavController(), modifier = Modifier)

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.*
 
+
 class EventsManagementViewModel : ViewModel() {
 
     private val _events = MutableStateFlow<List<Event>>(emptyList())
@@ -26,7 +27,6 @@ class EventsManagementViewModel : ViewModel() {
 
     private val _filteredEvents = MutableStateFlow<List<Event>>(emptyList())
     val filteredEvents: StateFlow<List<Event>> = _filteredEvents.asStateFlow()
-
 
     private val _filteredEventsAdvanced = MutableStateFlow<List<Event>>(emptyList())
     val filteredEventsAdvanced: StateFlow<List<Event>> = _filteredEventsAdvanced.asStateFlow()
@@ -47,7 +47,6 @@ class EventsManagementViewModel : ViewModel() {
         }
         _filteredEvents.value = filteredList
     }
-
 
     fun onSearchQueryChange(query: String) {
         _searchQuery.value = query
@@ -88,7 +87,6 @@ class EventsManagementViewModel : ViewModel() {
         _filteredEventsAdvanced.value = filteredListAdvanced
         Log.d("FilterEvents", "Filtered Events in count in filteredEvent state: ${_filteredEventsAdvanced.value.size}")
     }
-
 
     fun fetchEvents() {
 
@@ -269,7 +267,6 @@ class EventsManagementViewModel : ViewModel() {
             Pair("Invalid Date", "Invalid Date") to "Invalid Date"
         }
     }
-
 
     fun getEventById(eventId: String?): Event? {
         val eventList = _events.value

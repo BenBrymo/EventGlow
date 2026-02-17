@@ -156,7 +156,7 @@ fun EventRow(event: Event, onClick: (Event) -> Unit, viewModel: EventsManagement
 }
 
 
-@Preview
+@Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun ScreenPreview() {
     UserSearchScreen(navController = rememberNavController())

@@ -452,7 +452,7 @@ fun ShimmerItem(alpha: Float) {
     )
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun PreviewTicketItem() {
     // Mock data for preview

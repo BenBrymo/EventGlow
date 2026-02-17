@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -146,4 +147,21 @@ fun FilteredResultsEventRow(event: Event, onClick: (Event) -> Unit) {
             )
         }
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun FilteredResultsEventRowPreview() {
+    FilteredResultsEventRow(
+        event = Event(
+            id = "f1",
+            eventName = "Community Meetup",
+            startDate = "16/2/2026",
+            endDate = "16/2/2026",
+            eventCategory = "Tech",
+            eventStatus = "Upcoming",
+            imageUri = ""
+        ),
+        onClick = {}
+    )
 }

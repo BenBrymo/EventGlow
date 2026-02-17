@@ -229,7 +229,7 @@ fun FavouriteEventItem(
 }
 
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun FavouriteScreenPreview() {
     FavouriteScreen(navController = rememberNavController(), modifier = Modifier)

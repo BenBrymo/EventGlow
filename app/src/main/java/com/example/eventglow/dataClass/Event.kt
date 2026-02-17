@@ -16,6 +16,7 @@ data class Event(
     val ticketTypes: List<TicketType> = emptyList(),
     val imageUri: String? = null,
     val isDraft: Boolean = false,
+    val isImportant: Boolean = false,
     val eventOrganizer: String = "",
     val eventDescription: String = ""
 )

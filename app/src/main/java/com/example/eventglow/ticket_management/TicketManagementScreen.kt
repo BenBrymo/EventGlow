@@ -19,8 +19,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.R
 import com.example.eventglow.ui.theme.AccentOrange
 import com.example.eventglow.ui.theme.BackgroundBlack
@@ -394,3 +396,50 @@ fun SalesAnalytics() {
 // Sample data classes (replace with your models)
 data class Event(val name: String, val date: String, val ticketTiers: List<TicketTier>)
 data class TicketTier(val name: String, val price: Double, val availableTickets: Int)
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ManageTicketsScreenPreview() {
+    ManageTicketsScreen(
+        onBackClick = {},
+        onVerifyClick = {},
+        navController = rememberNavController()
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ManageTicketsTopBarPreview() {
+    ManageTicketsTopBar(onBackClick = {})
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SearchFieldPreview() {
+    SearchField()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun TicketManagementScreenPreview() {
+    TicketManagementScreen(navController = rememberNavController())
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EventTicketCardPreview() {
+    EventTicketCard(
+        navController = rememberNavController(),
+        event = Event(
+            "Music Concert",
+            "August 25, 2024",
+            listOf(TicketTier("VIP", 200.0, 50), TicketTier("General", 100.0, 150))
+        )
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SalesAnalyticsPreview() {
+    SalesAnalytics()
+}

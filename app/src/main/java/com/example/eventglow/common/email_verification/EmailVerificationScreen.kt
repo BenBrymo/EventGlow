@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -64,6 +65,57 @@ fun EmailVerificationScreen(
         )
     }
 
+    EmailVerificationContent(
+        isButtonEnabled = isButtonEnabled,
+        timeRemaining = timeRemaining,
+        onBack = { navController.popBackStack() },
+        onResend = {
+            scope.launch {
+                viewModel.sendVerificationEmail(
+                    onSuccess = {
+                        scope.launch {
+                            Toast.makeText(context, "Email has been sent again", Toast.LENGTH_SHORT).show()
+                            //disable button
+                            isButtonEnabled = false
+                            //reset time remaining
+                            timeRemaining = 60
+                            //start clock
+                            timeRunning.value = true
+                            // jumpstart counting
+                            while (timeRemaining > 0) {
+                                delay(1000)
+                                //decrease time
+                                timeRemaining--
+                            }
+                            //enable button
+                            isButtonEnabled = true
+                            //stop clock
+                            timeRunning.value = false
+                        }
+                    },
+                    onError = {
+                        Toast.makeText(
+                            context,
+                            "An error occurred please wait for sometime",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                )
+            }
+        },
+        onDone = { navController.navigate(Routes.LOGIN_SCREEN) }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EmailVerificationContent(
+    isButtonEnabled: Boolean,
+    timeRemaining: Int,
+    onBack: () -> Unit,
+    onResend: () -> Unit,
+    onDone: () -> Unit
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -71,7 +123,7 @@ fun EmailVerificationScreen(
                     Text(text = "Email Verification", color = MaterialTheme.colorScheme.primary)
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
+                    IconButton(onClick = onBack) {
                         Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
                     }
                 }
@@ -106,42 +158,9 @@ fun EmailVerificationScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
-                    onClick = {
-                        scope.launch {
-                            viewModel.sendVerificationEmail(
-                                onSuccess = {
-                                    scope.launch {
-                                        Toast.makeText(context, "Email has been sent again", Toast.LENGTH_SHORT).show()
-                                        //disable button
-                                        isButtonEnabled = false
-                                        //reset time remaining
-                                        timeRemaining = 60
-                                        //start clock
-                                        timeRunning.value = true
-                                        // jumpstart counting
-                                        while (timeRemaining > 0) {
-                                            delay(1000)
-                                            //decrease time
-                                            timeRemaining--
-                                        }
-                                        //enable button
-                                        isButtonEnabled = true
-                                        //stop clock
-                                        timeRunning.value = false
-                                    }
-                                },
-                                onError = {
-                                    Toast.makeText(
-                                        context,
-                                        "An error occurred please wait for sometime",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            )
-                        }
-                    },
+                    onClick = onResend,
                     enabled = isButtonEnabled
-                ) {//viewModel.sendPasswordResetEmail()
+                ) {
                     Text(text = "Resend Email")
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -163,7 +182,7 @@ fun EmailVerificationScreen(
                 )
                 Spacer(modifier = Modifier.height(32.dp))
                 Button(
-                    onClick = { navController.navigate(Routes.LOGIN_SCREEN) },
+                    onClick = onDone,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
@@ -173,4 +192,16 @@ fun EmailVerificationScreen(
             }
         }
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun EmailVerificationScreenPreview() {
+    EmailVerificationContent(
+        isButtonEnabled = false,
+        timeRemaining = 42,
+        onBack = {},
+        onResend = {},
+        onDone = {}
+    )
 }

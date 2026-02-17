@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.eventglow.ui.theme.AccentOrange
 import com.example.eventglow.ui.theme.BackgroundBlack
@@ -302,4 +303,55 @@ fun ExportButton() {
             color = Color.White
         )
     }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun DetailedAnalyticsScreenPreview() {
+    DetailedAnalyticsScreen()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun AnalyticsTopBarPreview() {
+    AnalyticsTopBar()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun AnalyticsTabsPreview() {
+    AnalyticsTabs(
+        selectedTab = 1,
+        onTabSelected = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun StatsRowPreview() {
+    StatsRow()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun MonthlyFilterPreview() {
+    MonthlyFilter()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun RangeFilterPreview() {
+    RangeFilter()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ChartPlaceholderPreview() {
+    ChartPlaceholder()
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun ExportButtonPreview() {
+    ExportButton()
 }
