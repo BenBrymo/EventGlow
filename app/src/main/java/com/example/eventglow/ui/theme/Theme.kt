@@ -17,83 +17,57 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-
-    // 🔥 Brand
     primary = BrandPrimary,
-    onPrimary = TextPrimary,
+    onPrimary = DarkOnSurface,
     primaryContainer = BrandPrimaryDark,
-    onPrimaryContainer = TextPrimary,
-
-    // 🎨 Secondary Accents
+    onPrimaryContainer = DarkOnSurface,
     secondary = AccentBlue,
-    onSecondary = TextPrimary,
+    onSecondary = DarkOnSurface,
     tertiary = AccentPurple,
-    onTertiary = TextPrimary,
-
-    // 🌑 Background & Surface
-    background = Background,
-    onBackground = TextPrimary,
-    surface = SurfaceLevel1,
-    onSurface = TextPrimary,
-    surfaceVariant = SurfaceLevel2,
-    onSurfaceVariant = TextSecondary,
-
-    // 🚦 States
-    error = Error,
-    onError = TextPrimary,
-
-    // 🧱 Outline / Borders
-    outline = BorderDefault,
-    outlineVariant = BorderSubtle
+    onTertiary = DarkOnSurface,
+    background = DarkBackground,
+    onBackground = DarkOnBackground,
+    surface = DarkSurface,
+    onSurface = DarkOnSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurfaceVariant = DarkOnSurfaceVariant,
+    error = DarkError,
+    onError = DarkBackground,
+    outline = DarkOutline,
+    outlineVariant = DarkOutlineVariant
 )
 
-
 private val LightColorScheme = lightColorScheme(
-
-    // 🔥 Brand
     primary = BrandPrimary,
     onPrimary = Color.White,
     primaryContainer = BrandPrimaryLight,
-    onPrimaryContainer = Color.Black,
-
-    // 🎨 Secondary
+    onPrimaryContainer = LightOnBackground,
     secondary = AccentBlue,
     onSecondary = Color.White,
     tertiary = AccentPurple,
     onTertiary = Color.White,
-
-    // 🌤 Background
     background = LightBackground,
-    onBackground = LightTextPrimary,
+    onBackground = LightOnBackground,
     surface = LightSurface,
-    onSurface = LightTextPrimary,
+    onSurface = LightOnSurface,
     surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightTextSecondary,
-
-    // 🚦 States
-    error = Error,
+    onSurfaceVariant = LightOnSurfaceVariant,
+    error = LightError,
     onError = Color.White,
-
-    // 🧱 Outline
-    outline = LightBorder,
-    outlineVariant = LightBorder
+    outline = LightOutline,
+    outlineVariant = LightOutlineVariant
 )
-
 
 @Composable
 fun EventGlowTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // 🔥 Brand first
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-
     val colorScheme = when {
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
-            if (darkTheme)
-                dynamicDarkColorScheme(context)
-            else
-                dynamicLightColorScheme(context)
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
@@ -104,16 +78,10 @@ fun EventGlowTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-
-            // Status bar
             window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars = !darkTheme
-
-            // Navigation bar
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             window.navigationBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightNavigationBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
 

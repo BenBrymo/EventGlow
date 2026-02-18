@@ -28,18 +28,36 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
 
     private val _adminHomeUiState = MutableStateFlow(AdminHomeUiState())
     val adminHomeUiState: StateFlow<AdminHomeUiState> = _adminHomeUiState.asStateFlow()
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     init {
         fetchAdminHomeData()
     }
 
+    fun refreshAdminHomeData() {
+        fetchAdminHomeData(isRefresh = true)
+    }
 
-    fun fetchAdminHomeData() {
-        setLoading()
-        launchWhenConnected(tag = "AdminViewModel") {
-            val result = firestore.collection("events")
-                .whereEqualTo("isDraft", false)
-                .get()
+    fun fetchAdminHomeData(isRefresh: Boolean = false) {
+        if (isRefresh) {
+            _isRefreshing.value = true
+            clearError()
+        } else {
+            setLoading()
+        }
+
+        if (!isNetworkAvailable()) {
+            _isRefreshing.value = false
+            setFailure("No internet connection. Check your network and try again.")
+            return
+        }
+
+        launchSafely(tag = "AdminViewModel") {
+            try {
+                val result = firestore.collection("events")
+                    .whereEqualTo("isDraft", false)
+                    .get()
                 .await()
 
             val events = result.documents.map { document ->
@@ -114,13 +132,16 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                 .sortedBy { parseDateOrNull(it.startDate) ?: Date(Long.MAX_VALUE) }
                 .take(6)
 
-            _adminHomeUiState.value = AdminHomeUiState(
-                totalEvents = events.size,
-                totalTickets = boughtTicketsCount,
-                upcomingEvents = upcomingEvents,
-                todayEvents = todayEvents
-            )
-            setSuccess()
+                _adminHomeUiState.value = AdminHomeUiState(
+                    totalEvents = events.size,
+                    totalTickets = boughtTicketsCount,
+                    upcomingEvents = upcomingEvents,
+                    todayEvents = todayEvents
+                )
+                setSuccess()
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 
@@ -154,20 +175,41 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
         }
     }
 
-    // Function to fetch profilePictureUrl from Firestore
-    suspend fun fetchProfilePictureUrlFromFirestore(): String? {
-        val userId = auth.currentUser?.uid ?: return null
+    // Function to update headerPictureUrl in Firestore
+    fun updateHeaderPictureUrlInFirestore(newHeaderImageUrl: String) {
+        val userId = auth.currentUser?.uid ?: return
 
-        return try {
+        viewModelScope.launch {
             val userDocRef = firestore.collection("users").document(userId)
-            val documentSnapshot = userDocRef.get().await()
-            if (documentSnapshot.exists()) {
-                documentSnapshot.getString("profilePictureUrl")
-            } else {
-                null
-            }
+            userDocRef.update("headerPictureUrl", newHeaderImageUrl)
+                .addOnSuccessListener {
+                    Log.d("AdminViewModel", "Saved new header image to firestore")
+                }
+                .addOnFailureListener { exception ->
+                    Log.d("AdminViewModel", "Failed to save new header image to firestore ${exception.message}")
+                }
+        }
+    }
+
+
+    // Fetch only the missing profile fields from Firestore.
+    suspend fun fetchMissingProfileFieldsFromFirestore(
+        fetchUsername: Boolean,
+        fetchProfilePictureUrl: Boolean,
+        fetchHeaderPictureUrl: Boolean
+    ): AdminProfileFallbackData? {
+        val userId = auth.currentUser?.uid ?: return null
+        return try {
+            val documentSnapshot = firestore.collection("users").document(userId).get().await()
+            if (!documentSnapshot.exists()) return null
+
+            AdminProfileFallbackData(
+                username = if (fetchUsername) documentSnapshot.getString("username") else null,
+                profilePictureUrl = if (fetchProfilePictureUrl) documentSnapshot.getString("profilePictureUrl") else null,
+                headerPictureUrl = if (fetchHeaderPictureUrl) documentSnapshot.getString("headerPictureUrl") else null
+            )
         } catch (e: Exception) {
-            Log.d("AdminViewModel", "Failed to fetch profile image from Firestore: ${e.message}")
+            Log.d("AdminViewModel", "Failed to fetch missing profile fields: ${e.message}")
             null
         }
     }
@@ -178,4 +220,10 @@ data class AdminHomeUiState(
     val totalTickets: Int = 0,
     val upcomingEvents: List<Event> = emptyList(),
     val todayEvents: List<Event> = emptyList()
+)
+
+data class AdminProfileFallbackData(
+    val username: String? = null,
+    val profilePictureUrl: String? = null,
+    val headerPictureUrl: String? = null
 )

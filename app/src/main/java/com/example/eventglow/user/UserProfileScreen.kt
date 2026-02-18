@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -187,7 +188,6 @@ private fun ProfileMenuItem(
 
 
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserProfileScreen2(
@@ -254,12 +254,12 @@ fun UserProfileScreen2(
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-//                    Text(
-//                        text = "userName",
-//                        style = MaterialTheme.typography.titleLarge,
-//                        fontWeight = FontWeight.Bold,
-//                        modifier = Modifier.padding(end = 8.dp)
-//                    )
+                    Text(
+                        text = "userName",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
                     Badge { Text("User") }
                 }
             }
@@ -315,6 +315,7 @@ fun UserProfileScreen2(
         }
     }
 }
+
 
 @Composable
 fun MenuItem(icon: ImageVector, title: String, onClick: () -> Unit) {
