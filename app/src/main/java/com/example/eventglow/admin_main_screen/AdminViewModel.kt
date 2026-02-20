@@ -1,9 +1,11 @@
 package com.example.eventglow.admin_main_screen
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
-import androidx.lifecycle.viewModelScope
+import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.BaseViewModel
+import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
@@ -13,8 +15,14 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -25,6 +33,15 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
     private val sharedPreferences = UserPreferences(application)
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
+    private val appContext = application.applicationContext
+
+    private val cloudinaryApi: CloudinaryApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.cloudinary.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(CloudinaryApi::class.java)
+    }
 
     private val _adminHomeUiState = MutableStateFlow(AdminHomeUiState())
     val adminHomeUiState: StateFlow<AdminHomeUiState> = _adminHomeUiState.asStateFlow()
@@ -157,37 +174,109 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
         sharedPreferences.updateHeaderImageUrl(newHeaderImageUrl)
     }
 
+
+    suspend fun uploadImageToCloudinary(imageUri: Uri, folder: String): String? {
+        if (!isNetworkAvailable()) {
+            setFailure("No internet connection. Check your network and try again.")
+            return null
+        }
+
+        return try {
+            val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
+            val uploadPreset = BuildConfig.CLOUDINARY_UPLOAD_PRESET.trim()
+            if (cloudName.isBlank() || uploadPreset.isBlank()) {
+                setFailure("Cloudinary credentials are missing in BuildConfig.")
+                return null
+            }
+
+            val mimeType = appContext.contentResolver.getType(imageUri) ?: "image/jpeg"
+            val extension = when (mimeType) {
+                "image/png" -> "png"
+                "image/webp" -> "webp"
+                else -> "jpg"
+            }
+
+            val input = appContext.contentResolver.openInputStream(imageUri)
+                ?: throw IllegalArgumentException("Could not read selected image.")
+
+            val cleanFolder = folder.trim().trim('/')
+            val folderToken = cleanFolder.replace("/", "_")
+            val timestamp = System.currentTimeMillis()
+            val publicIdValue = "${folderToken}_$timestamp"
+            val tempFile = File(appContext.cacheDir, "$publicIdValue.$extension")
+            input.use { source ->
+                tempFile.outputStream().use { target ->
+                    source.copyTo(target)
+                }
+            }
+
+            val fileRequestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData(
+                name = "file",
+                filename = tempFile.name,
+                body = fileRequestBody
+            )
+
+            val uploadPresetBody = uploadPreset.toRequestBody("text/plain".toMediaTypeOrNull())
+            val folderBody = cleanFolder.toRequestBody("text/plain".toMediaTypeOrNull())
+            val assetFolderBody = cleanFolder.toRequestBody("text/plain".toMediaTypeOrNull())
+            val publicIdBody = publicIdValue.toRequestBody("text/plain".toMediaTypeOrNull())
+
+            val response = cloudinaryApi.uploadImage(
+                cloudName = cloudName,
+                file = filePart,
+                uploadPreset = uploadPresetBody,
+                folder = folderBody,
+                assetFolder = assetFolderBody,
+                publicId = publicIdBody
+            )
+
+            tempFile.delete()
+
+            val secureUrl = response.secureUrl
+            if (secureUrl.isNullOrBlank()) {
+                setFailure("Cloudinary upload failed.")
+                null
+            } else {
+                secureUrl
+            }
+        } catch (e: Exception) {
+            setFailure(resolveErrorMessage(e))
+            null
+        }
+    }
+
     // Function to update profilePictureUrl in Firestore
     fun updateProfilePictureUrlInFirestore(newProfileImageUrl: String) {
-        val userId = auth.currentUser?.uid ?: return
+        val userId = auth.currentUser?.uid
+        if (userId.isNullOrBlank()) {
+            setFailure("User is not signed in.")
+            return
+        }
 
-        viewModelScope.launch {
-            val userDocRef = firestore.collection("users").document(userId)
-            userDocRef.update("profilePictureUrl", newProfileImageUrl)
-                .addOnSuccessListener {
-                    // Update successful
-                    Log.d("AdminViewModel", "Saved new profile image to firestore")
-                }
-                .addOnFailureListener { exception ->
-                    // Handle the error
-                    Log.d("AdminViewModel", "Failed to saved new profile image to firestore $exception.message")
-                }
+        launchWhenConnected(tag = "AdminViewModel") {
+            firestore.collection("users")
+                .document(userId)
+                .update("profilePictureUrl", newProfileImageUrl)
+                .await()
+            Log.d("AdminViewModel", "Saved new profile image to firestore")
         }
     }
 
     // Function to update headerPictureUrl in Firestore
     fun updateHeaderPictureUrlInFirestore(newHeaderImageUrl: String) {
-        val userId = auth.currentUser?.uid ?: return
+        val userId = auth.currentUser?.uid
+        if (userId.isNullOrBlank()) {
+            setFailure("User is not signed in.")
+            return
+        }
 
-        viewModelScope.launch {
-            val userDocRef = firestore.collection("users").document(userId)
-            userDocRef.update("headerPictureUrl", newHeaderImageUrl)
-                .addOnSuccessListener {
-                    Log.d("AdminViewModel", "Saved new header image to firestore")
-                }
-                .addOnFailureListener { exception ->
-                    Log.d("AdminViewModel", "Failed to save new header image to firestore ${exception.message}")
-                }
+        launchWhenConnected(tag = "AdminViewModel") {
+            firestore.collection("users")
+                .document(userId)
+                .update("headerPictureUrl", newHeaderImageUrl)
+                .await()
+            Log.d("AdminViewModel", "Saved new header image to firestore")
         }
     }
 
@@ -198,10 +287,27 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
         fetchProfilePictureUrl: Boolean,
         fetchHeaderPictureUrl: Boolean
     ): AdminProfileFallbackData? {
-        val userId = auth.currentUser?.uid ?: return null
+        if (!isNetworkAvailable()) {
+            setFailure("No internet connection. Check your network and try again.")
+            return null
+        }
+
+        val userId = auth.currentUser?.uid
+        if (userId.isNullOrBlank()) {
+            setFailure("User is not signed in.")
+            return null
+        }
+
+        if (!fetchUsername && !fetchProfilePictureUrl && !fetchHeaderPictureUrl) {
+            return null
+        }
+
         return try {
             val documentSnapshot = firestore.collection("users").document(userId).get().await()
-            if (!documentSnapshot.exists()) return null
+            if (!documentSnapshot.exists()) {
+                setFailure("User profile record was not found.")
+                return null
+            }
 
             AdminProfileFallbackData(
                 username = if (fetchUsername) documentSnapshot.getString("username") else null,
@@ -209,7 +315,9 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                 headerPictureUrl = if (fetchHeaderPictureUrl) documentSnapshot.getString("headerPictureUrl") else null
             )
         } catch (e: Exception) {
-            Log.d("AdminViewModel", "Failed to fetch missing profile fields: ${e.message}")
+            val message = resolveErrorMessage(e)
+            setFailure(message)
+            Log.d("AdminViewModel", "Failed to fetch missing profile fields: $message")
             null
         }
     }

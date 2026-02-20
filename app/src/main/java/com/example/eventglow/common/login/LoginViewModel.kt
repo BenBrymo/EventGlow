@@ -8,6 +8,7 @@ import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
 import com.example.eventglow.dataClass.UserPreferences
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,9 +31,19 @@ class LoginViewModel(application: Application) : BaseViewModel(application) {
     // Public access to the login state
     val loginState: StateFlow<LoginState> get() = _loginState
 
+    private val loginThrottleKey = "login_auth"
+    private val maxFailedAttempts = 2
+    private val lockoutDurationMillis = 120_000L
+
 
     // Function to handle login logic
     fun login(email: String, password: String) {
+        getThrottleLockMessage(loginThrottleKey)?.let { message ->
+            setFailure(message)
+            _loginState.value = LoginState.Error(message)
+            return
+        }
+
         if (!isNetworkAvailable()) {
             val message = "No internet connection. Check your network and try again."
             setFailure(message)
@@ -46,7 +57,21 @@ class LoginViewModel(application: Application) : BaseViewModel(application) {
         launchSafely(
             tag = "LoginViewModel",
             onError = { throwable ->
-                _loginState.value = LoginState.Error(resolveErrorMessage(throwable))
+                val resolved = resolveErrorMessage(throwable)
+                val isCredentialError = isWrongCredentialError(throwable, resolved)
+                val message = if (isCredentialError) {
+                    resolveThrottledFailureMessage(
+                        throttleKey = loginThrottleKey,
+                        isThrottleCandidate = true,
+                        baseMessage = "Wrong username or password.",
+                        maxFailedAttempts = maxFailedAttempts,
+                        lockoutDurationMillis = lockoutDurationMillis
+                    )
+                } else {
+                    resolved
+                }
+                setFailure(message)
+                _loginState.value = LoginState.Error(message)
             }
         ) {
             firebaseAuth.signInWithEmailAndPassword(email, password).await()
@@ -66,8 +91,11 @@ class LoginViewModel(application: Application) : BaseViewModel(application) {
 
             val emailPref = document.getString("email").orEmpty().ifBlank { email }
             val userName = document.getString("username").orEmpty()
+            val fcmToken = document.getString("fcmToken")
             val profilePictureUrl = document.getString("profilePictureUrl")
+                ?.takeUnless { it.isBlank() || it.equals("null", ignoreCase = true) }
             val headerPictureUrl = document.getString("headerPictureUrl")
+                ?.takeUnless { it.isBlank() || it.equals("null", ignoreCase = true) }
             val role = document.getString("role").orEmpty()
 
             val boughtTickets = mapListToBoughtTickets(document.get("boughtTickets"))
@@ -80,6 +108,7 @@ class LoginViewModel(application: Application) : BaseViewModel(application) {
             sharedPreferences.saveUserInfo(
                 email = emailPref,
                 userName = userName,
+                fcmToken = fcmToken,
                 profilePictureUrl = profilePictureUrl,
                 headerPictureUrl = headerPictureUrl,
                 role = role,
@@ -90,9 +119,27 @@ class LoginViewModel(application: Application) : BaseViewModel(application) {
             )
 
             Log.d("LoginViewModel", "User data stored to shared preferences")
+            clearThrottle(loginThrottleKey)
             setSuccess()
             _loginState.value = LoginState.Success(role)
         }
+    }
+
+    private fun isWrongCredentialError(throwable: Throwable, resolvedMessage: String): Boolean {
+        if (throwable is FirebaseAuthException) {
+            val code = throwable.errorCode
+            if (code == "ERROR_WRONG_PASSWORD" ||
+                code == "ERROR_INVALID_CREDENTIAL" ||
+                code == "INVALID_LOGIN_CREDENTIALS"
+            ) {
+                return true
+            }
+        }
+
+        val lower = resolvedMessage.lowercase()
+        return lower.contains("wrong username or password") ||
+                lower.contains("invalid login credentials") ||
+                lower.contains("supplied auth credential")
     }
 }
 
@@ -121,6 +168,7 @@ private fun Map<*, *>.toBoughtTicket(): BoughtTicket {
         ticketPrice = this["ticketPrice"] as? String ?: ""
     )
 }
+
 
 private fun Map<*, *>.toEvent(): Event {
     val ticketTypesRaw = this["ticketTypes"] as? List<*> ?: emptyList<Any>()

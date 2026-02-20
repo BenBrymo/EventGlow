@@ -18,6 +18,8 @@ data class Event(
     val isDraft: Boolean = false,
     val isImportant: Boolean = false,
     val eventOrganizer: String = "",
-    val eventDescription: String = ""
+    val eventDescription: String = "",
+    val durationLabel: String = "",
+    val durationMinutes: Int = 0
 )
 

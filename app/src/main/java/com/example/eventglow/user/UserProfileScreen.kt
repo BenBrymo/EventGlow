@@ -37,6 +37,8 @@ import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.MainActivityViewModel
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.navigation.navigateAndClearTo
+import com.example.eventglow.navigation.navigateSingleTop
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BrandPrimary
 import com.example.eventglow.ui.theme.SurfaceLevel2
@@ -274,7 +276,7 @@ fun UserProfileScreen2(
                 MenuItem(
                     icon = Icons.Default.Favorite,
                     title = "Favorite Events",
-                    onClick = { bottomNavController.navigate(RoutesUser.FAVOURITE_EVENTS_SCREEN) }
+                    onClick = { bottomNavController.navigateSingleTop(RoutesUser.FAVOURITE_EVENTS_SCREEN) }
                 )
             }
             item {
@@ -288,7 +290,7 @@ fun UserProfileScreen2(
                 MenuItem(
                     icon = Icons.Default.Settings,
                     title = "Settings",
-                    onClick = { bottomNavController.navigate(RoutesUser.SETTINGS) }
+                    onClick = { bottomNavController.navigateSingleTop(RoutesUser.SETTINGS) }
                 )
             }
             item {
@@ -301,11 +303,7 @@ fun UserProfileScreen2(
                             onSuccess = {
 
                                 // Navigate to login screen and clear the main navigation stack
-                                mainNavController.navigate(Routes.LOGIN_SCREEN) {
-                                    popUpTo(Routes.LOGIN_SCREEN) {
-                                        inclusive = true
-                                    }
-                                }
+                                mainNavController.navigateAndClearTo(Routes.LOGIN_SCREEN)
                             },
                             onError = { Log.d("Log Out UserProfile Screen ", "Could not log out : ${it.message}") }
                         )

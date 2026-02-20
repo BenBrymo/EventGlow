@@ -1,5 +1,6 @@
 package com.example.eventglow.admin_main_screen
 
+import android.content.Context
 import android.content.res.Configuration
 import android.net.Uri
 import android.util.Log
@@ -35,7 +36,31 @@ import com.example.eventglow.R
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.EventGlowTheme
+import kotlinx.coroutines.launch
+import java.io.File
 
+
+private fun String?.toImageUriOrNull(): Uri? {
+    if (this.isNullOrBlank() || this.equals("null", ignoreCase = true)) return null
+    return runCatching { Uri.parse(this) }.getOrNull()
+}
+
+private fun copyImageToInternalStorage(context: Context, sourceUri: Uri, filePrefix: String): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(sourceUri) ?: return null
+        val outputDir = File(context.filesDir, "profile_images").apply { mkdirs() }
+        val outputFile = File(outputDir, "${filePrefix}_${System.currentTimeMillis()}.jpg")
+        inputStream.use { input ->
+            outputFile.outputStream().use { output ->
+                input.copyTo(output)
+            }
+        }
+        Uri.fromFile(outputFile).toString()
+    } catch (e: Exception) {
+        Log.d("AdminProfileScreen", "Failed to copy image locally: ${e.message}")
+        null
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,19 +72,29 @@ fun AdminProfileScreen(
 ) {
     // Shared preferences data
     val userData by sharedPreferencesViewModel.userInfo.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var hasFetchedMissingFields by remember { mutableStateOf(false) }
     var username by remember { mutableStateOf(userData["USERNAME"]) }
     var profilePictureUrl by remember {
-        mutableStateOf(userData["PROFILE_PICTURE_URL"]?.takeIf { it.isNotBlank() }?.toUri())
+        mutableStateOf(userData["PROFILE_PICTURE_URL"].toImageUriOrNull())
     }
     var headerPictureUrl by remember {
-        mutableStateOf(userData["HEADER_PICTURE_URL"]?.takeIf { it.isNotBlank() }?.toUri())
+        mutableStateOf(userData["HEADER_PICTURE_URL"].toImageUriOrNull())
     }
 
-    val isUsernameMissing = userData["USERNAME"].isNullOrBlank()
-    val isProfilePictureMissing = userData["PROFILE_PICTURE_URL"].isNullOrBlank()
-    val isHeaderPictureMissing = userData["HEADER_PICTURE_URL"].isNullOrBlank()
+    val isUsernameMissing = userData["USERNAME"].isNullOrBlank() || userData["USERNAME"].equals("null", true)
+    val isProfilePictureMissing =
+        userData["PROFILE_PICTURE_URL"].isNullOrBlank() || userData["PROFILE_PICTURE_URL"].equals("null", true)
+    val isHeaderPictureMissing =
+        userData["HEADER_PICTURE_URL"].isNullOrBlank() || userData["HEADER_PICTURE_URL"].equals("null", true)
+
+    LaunchedEffect(userData["USERNAME"], userData["PROFILE_PICTURE_URL"], userData["HEADER_PICTURE_URL"]) {
+        username = userData["USERNAME"]
+        profilePictureUrl = userData["PROFILE_PICTURE_URL"].toImageUriOrNull()
+        headerPictureUrl = userData["HEADER_PICTURE_URL"].toImageUriOrNull()
+    }
 
     LaunchedEffect(isUsernameMissing, isProfilePictureMissing, isHeaderPictureMissing) {
         if (hasFetchedMissingFields) return@LaunchedEffect
@@ -80,11 +115,13 @@ fun AdminProfileScreen(
         if (isProfilePictureMissing && !fallbackData.profilePictureUrl.isNullOrBlank()) {
             profilePictureUrl = fallbackData.profilePictureUrl.toUri()
             viewModel.updateProfileImageUrlInSharedPreferences(fallbackData.profilePictureUrl)
+            sharedPreferencesViewModel.refreshUserInfo()
         }
 
         if (isHeaderPictureMissing && !fallbackData.headerPictureUrl.isNullOrBlank()) {
             headerPictureUrl = fallbackData.headerPictureUrl.toUri()
             viewModel.updateHeaderInSharedPreferences(fallbackData.headerPictureUrl)
+            sharedPreferencesViewModel.refreshUserInfo()
         }
     }
 
@@ -92,18 +129,16 @@ fun AdminProfileScreen(
     val profileImagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri.let { imageUrl ->
-            //sets profilePictureUrl
-            profilePictureUrl = imageUrl
+        uri?.let { imageUrl ->
+            scope.launch {
+                val localUri = copyImageToInternalStorage(context, imageUrl, "profile")
+                val uriToStore = localUri ?: imageUrl.toString()
 
-            //Update profilePictureUrl in User's SharedPreferences
-            viewModel.updateProfileImageUrlInSharedPreferences(imageUrl.toString())
-
-            //update profilePictureUrl in firestore
-            viewModel.updateProfilePictureUrlInFirestore(imageUrl.toString())
-
-            Log.d("SharedPreference new profile url:", "$userData[PROFILE_PICTURE_URL]")
-
+                profilePictureUrl = uriToStore.toUri()
+                viewModel.updateProfileImageUrlInSharedPreferences(uriToStore)
+                sharedPreferencesViewModel.refreshUserInfo()
+                viewModel.updateProfilePictureUrlInFirestore(uriToStore)
+            }
         }
     }
 
@@ -112,16 +147,16 @@ fun AdminProfileScreen(
     val headerImagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        uri.let { imageUrl ->
-            //sets headerPictureUrl
-            headerPictureUrl = imageUrl
+        uri?.let { imageUrl ->
+            scope.launch {
+                val localUri = copyImageToInternalStorage(context, imageUrl, "header")
+                val uriToStore = localUri ?: imageUrl.toString()
 
-            //Update headerPictureUrl in User's SharedPreferences
-            viewModel.updateHeaderInSharedPreferences(imageUrl.toString())
-            //Update headerPictureUrl in Firestore
-            viewModel.updateHeaderPictureUrlInFirestore(imageUrl.toString())
-
-            Log.d("SharedPreference new header url:", "$userData[HEADER_PICTURE_URL]")
+                headerPictureUrl = uriToStore.toUri()
+                viewModel.updateHeaderInSharedPreferences(uriToStore)
+                viewModel.updateHeaderPictureUrlInFirestore(uriToStore)
+                sharedPreferencesViewModel.refreshUserInfo()
+            }
         }
     }
 

@@ -60,6 +60,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.eventglow.common.LoadState
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.navigation.navigateAndClearTo
+import com.example.eventglow.navigation.navigateSingleTop
 import com.example.eventglow.ui.theme.EventGlowTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -85,8 +87,8 @@ fun loginScreen(
         val role = (loginState as LoginState.Success).role
         LaunchedEffect(role) {
             when (role) {
-                "user" -> navController.navigate(Routes.USER_MAIN_SCREEN)
-                "admin" -> navController.navigate(Routes.ADMIN_MAIN_SCREEN)
+                "user" -> navController.navigateAndClearTo(Routes.USER_MAIN_SCREEN)
+                "admin" -> navController.navigateAndClearTo(Routes.ADMIN_MAIN_SCREEN)
             }
         }
     }
@@ -95,8 +97,8 @@ fun loginScreen(
         isLoading = isLoading,
         snackbarHostState = snackbarHostState,
         onLogin = { email, password -> viewModel.login(email, password) },
-        onForgotPassword = { navController.navigate(Routes.PASSWORD_RECOVERY_SCREEN) },
-        onSignUp = { navController.navigate(Routes.CREATE_ACCOUNT_SCREEN) }
+        onForgotPassword = { navController.navigateSingleTop(Routes.PASSWORD_RECOVERY_SCREEN) },
+        onSignUp = { navController.navigateSingleTop(Routes.CREATE_ACCOUNT_SCREEN) }
     )
 }
 

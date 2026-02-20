@@ -1,4 +1,4 @@
-package com.example.eventglow.events_management
+﻿package com.example.eventglow.events_management
 
 import android.app.TimePickerDialog
 import android.net.Uri
@@ -6,6 +6,12 @@ import android.util.Log
 import android.widget.TimePicker
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -21,6 +27,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
@@ -32,11 +39,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
+import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import com.example.eventglow.BuildConfig
 import com.example.eventglow.dataClass.TicketType
+import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.EventGlowTheme
 import kotlinx.coroutines.launch
-import java.util.*
+import java.util.Calendar
+import kotlin.math.roundToInt
+
+private const val CLOUDINARY_DEBUG_TAG = "CreateEventCloudinary"
+
+private fun formatDurationLabel(minutes: Int): String {
+    val hours = minutes / 60
+    val remainingMinutes = minutes % 60
+    return when {
+        hours > 0 && remainingMinutes > 0 -> "${hours} hr ${remainingMinutes} min"
+        hours > 0 -> "${hours} hr"
+        else -> "${minutes} min"
+    }
+}
 
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -57,8 +82,11 @@ fun CreateEventScreen(
     var endDate by remember { mutableStateOf("") }
     var isMultiDayEvent by remember { mutableStateOf(false) }
     var eventTime by remember { mutableStateOf("") }
+    var durationLabel by remember { mutableStateOf("") }
+    var durationMinutes by remember { mutableIntStateOf(0) }
     var eventVenue by remember { mutableStateOf("") }
     var eventStatus by remember { mutableStateOf("Upcoming") }
+    var isImportant by remember { mutableStateOf(false) }
     var eventCategory by remember { mutableStateOf("") } // Add eventCategory
     var ticketTypes by remember { mutableStateOf(listOf(TicketType("", 0.0, 0))) }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
@@ -82,13 +110,16 @@ fun CreateEventScreen(
             if (startDate.isEmpty()) validationErrors.add("Event date is required")
         }
         if (eventTime.isEmpty()) validationErrors.add("Event time is required")
+        if (durationMinutes <= 0) validationErrors.add("Event duration is required")
         if (eventVenue.isEmpty()) validationErrors.add("Event venue is required")
         if (eventStatus.isEmpty()) validationErrors.add("Event status is required")
         if (eventCategory.isEmpty()) validationErrors.add("Event category is required")
         if (eventOrganizer.isEmpty()) validationErrors.add("Event Organizer is required")
         if (eventDescription.isEmpty()) validationErrors.add("Event Description is required")
         if (ticketTypes.isEmpty()) validationErrors.add("At least one ticket Type is required")
-        if (ticketTypes.any { it.price < 1 }) validationErrors.add("Ticket price must be at least 1")
+        if (ticketTypes.any { !it.isFree && it.price < 1 }) {
+            validationErrors.add("Paid ticket price must be at least 1 GHS")
+        }
         if (imageUri == null) validationErrors.add("Event image is required")
         if (eventNameAndDateError != null) validationErrors.add("$eventNameAndDateError")
     }
@@ -101,155 +132,193 @@ fun CreateEventScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Event Image picker launcher
+    val context = LocalContext.current
+    var isUploadingImage by remember { mutableStateOf(false) }
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { imageUri = it }
+        uri?.let { selectedUri ->
+            scope.launch {
+                isUploadingImage = true
+                val uploadedUrl = viewModel.uploadEventImageToCloudinary(
+                    appContext = context,
+                    imageUri = selectedUri,
+                    eventName = eventName,
+                    eventCategory = eventCategory
+                )
+                isUploadingImage = false
+
+                if (uploadedUrl.isNullOrBlank()) {
+                    snackbarHostState.showSnackbar("Image upload failed. Please try again.")
+                } else {
+                    imageUri = Uri.parse(uploadedUrl)
+                    snackbarHostState.showSnackbar("Image uploaded successfully.")
+                }
+            }
+        }
+    }
+
+    fun markEventsUpdatedAndReturn() {
+        navController.previousBackStackEntry?.savedStateHandle?.set("events_updated", true)
+        navController.getBackStackEntryOrNull(Routes.ADMIN_MAIN_SCREEN)
+            ?.savedStateHandle
+            ?.set("events_updated", true)
+        navController.popBackStack()
     }
 
     // Real event images organized by categories
-    val realEventImages = mapOf(
-        "Concert" to listOf(
-            "https://plus.unsplash.com/premium_photo-1681830630610-9f26c9729b75?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8Y29uY2VydHxlbnwwfHwwfHx8MA%3D%3D",
-            "https://images.unsplash.com/photo-1429514513361-8fa32282fd5f?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y29uY2VydHxlbnwwfHwwfHx8MA%3D%3D",
-            "https://plus.unsplash.com/premium_photo-1661306437817-8ab34be91e0c?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OXx8Y29uY2VydHxlbnwwfHwwfHx8MA%3D%3D"
-        ),
-        "Conference" to listOf(
-            "https://plus.unsplash.com/premium_photo-1664302656889-e0ff44331843?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8Q29uZmVyZW5jZXxlbnwwfHwwfHx8MA%3D%3D",
-            "https://images.unsplash.com/photo-1477281765962-ef34e8bb0967?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8Q29uZmVyZW5jZXxlbnwwfHwwfHx8MA%3D%3D",
-            "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTR8fENvbmZlcmVuY2V8ZW58MHx8MHx8fDA%3D"
-        ),
-        "Sports" to listOf(
-            "https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fHNwb3J0JTIwZXZlbnRzfGVufDB8fDB8fHww",
-            "https://images.unsplash.com/photo-1569863959165-56dae551d4fc?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTR8fHNwb3J0JTIwZXZlbnRzfGVufDB8fDB8fHww",
-            "https://media.istockphoto.com/id/952397298/photo/friends-football-supporter-fans-cheering-with-confetti-watching-soccer-match-event-at-stadium.jpg?s=612x612&w=0&k=20&c=nVAQqWLkUW62OuHxj-d3PTHsljnekRGhutCjZIoASNs="
-        )
+    val realEventImages = rememberCloudinarySampleImages(
+        categories = listOf("Music", "Sport", "Tech"),
+        samplesPerCategory = 3
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Create Event", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    EventGlowTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Create Event", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
                     }
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { paddingValues ->
+                )
+            },
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        ) { paddingValues ->
 
-        // For all Content
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-
-            //For TabRow Content
-            Column(
-                modifier = Modifier.fillMaxSize()
+            // For all Content
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
             ) {
 
-                // creates a tab row
-                TabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                //For TabRow Content
+                Column(
+                    modifier = Modifier.fillMaxSize()
                 ) {
-                    Tab(
-                        text = { Text("Event Details") },
-                        selected = selectedTabIndex == 0, //set selected to true
-                        onClick = { selectedTabIndex = 0 }  // selects Event Details section
-                    )
-                    Tab(
-                        text = { Text("Ticket Details") },
-                        selected = selectedTabIndex == 1, //set selected to true
-                        onClick = { selectedTabIndex = 1 }  // selects Ticket Details section
-                    )
-                    Tab(
-                        text = { Text("Event Image") },
-                        selected = selectedTabIndex == 2, //set selected to true
-                        onClick = { selectedTabIndex = 2 }  // selects Event Images section
-                    )
-                    Tab(
-                        text = { Text("Finish") },
-                        selected = selectedTabIndex == 3, //set selected to true
-                        onClick = { selectedTabIndex = 3 }  // selects Finish section
-                    )
-                }
 
-                when (selectedTabIndex) {
-                    0 -> EventDetailsSection(
-                        eventName = eventName,
-                        startDate = startDate,
-                        endDate = endDate,
-                        isMultiDayEvent = isMultiDayEvent,
-                        eventTime = eventTime,
-                        eventVenue = eventVenue,
-                        eventStatus = eventStatus,
-                        eventCategory = eventCategory,
-                        eventOrganizer = eventOrganizer,
-                        eventDescription = eventDescription,
-                        onEventNameChange = { newEventName -> eventName = newEventName },
-                        onStartDateChange = { newStartDate -> startDate = newStartDate },
-                        onEndDateChange = { newEndDate -> endDate = newEndDate },
-                        onIsMultiDayEventChange = { isMultiDayEvent = it },
-                        onEventTimeChange = { newEventTime -> eventTime = newEventTime },
-                        onEventVenueChange = { newEventVenue -> eventVenue = newEventVenue },
-                        onEventCategoryChange = { newEventCategory -> eventCategory = newEventCategory },
-                        onEventOrganizerChange = { newEventOrganizer -> eventOrganizer = newEventOrganizer },
-                        onEventDescriptionChange = { newEventDescription -> eventDescription = newEventDescription },
-                        eventNameAndDateError = { errorMessage -> eventNameAndDateError = errorMessage }
-                    )
+                    // creates a tab row
+                    ScrollableTabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        edgePadding = 8.dp
+                    ) {
+                        Tab(
+                            text = { Text("Event Details") },
+                            selected = selectedTabIndex == 0, //set selected to true
+                            onClick = { selectedTabIndex = 0 }  // selects Event Details section
+                        )
+                        Tab(
+                            text = { Text("Ticket Details") },
+                            selected = selectedTabIndex == 1, //set selected to true
+                            onClick = { selectedTabIndex = 1 }  // selects Ticket Details section
+                        )
+                        Tab(
+                            text = { Text("Event Image") },
+                            selected = selectedTabIndex == 2, //set selected to true
+                            onClick = { selectedTabIndex = 2 }  // selects Event Images section
+                        )
+                        Tab(
+                            text = { Text("Finish") },
+                            selected = selectedTabIndex == 3, //set selected to true
+                            onClick = { selectedTabIndex = 3 }  // selects Finish section
+                        )
+                    }
 
-                    1 -> TicketDetailsSection(
+                    when (selectedTabIndex) {
+                        0 -> EventDetailsSection(
+                            eventName = eventName,
+                            startDate = startDate,
+                            endDate = endDate,
+                            isMultiDayEvent = isMultiDayEvent,
+                            eventTime = eventTime,
+                            durationLabel = durationLabel,
+                            durationMinutes = durationMinutes,
+                            eventVenue = eventVenue,
+                            eventStatus = eventStatus,
+                            isImportant = isImportant,
+                            eventCategory = eventCategory,
+                            eventOrganizer = eventOrganizer,
+                            eventDescription = eventDescription,
+                            onEventNameChange = { newEventName -> eventName = newEventName },
+                            onStartDateChange = { newStartDate -> startDate = newStartDate },
+                            onEndDateChange = { newEndDate -> endDate = newEndDate },
+                            onIsMultiDayEventChange = { isMultiDayEvent = it },
+                            onEventTimeChange = { newEventTime -> eventTime = newEventTime },
+                            onDurationChange = { label, minutes ->
+                                durationLabel = label
+                                durationMinutes = minutes
+                            },
+                            onEventVenueChange = { newEventVenue -> eventVenue = newEventVenue },
+                            onImportantChange = { isImportant = it },
+                            onEventCategoryChange = { newEventCategory -> eventCategory = newEventCategory },
+                            onEventOrganizerChange = { newEventOrganizer -> eventOrganizer = newEventOrganizer },
+                            onEventDescriptionChange = { newEventDescription ->
+                                eventDescription = newEventDescription
+                            },
+                            eventNameAndDateError = { errorMessage -> eventNameAndDateError = errorMessage }
+                        )
+
+                        1 -> TicketDetailsSection(
 
 
-                        ticketTypes = ticketTypes,  //pass initial ticketTypes list
-                        onAddTicketType = {
+                            ticketTypes = ticketTypes,  //pass initial ticketTypes list
+                            onAddTicketType = {
 
-                            //add a new ticket type object
-                            ticketTypes = ticketTypes + TicketType("", 0.0, 0)
-                        },
-                        onTicketTypeNameChange = { index, newName ->
+                                //add a new ticket type object
+                                ticketTypes = ticketTypes + TicketType("", 0.0, 0)
+                            },
+                            onTicketTypeNameChange = { index, newName ->
 
-                            //map tickets in the list of tickets to an index
-                            ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
+                                //map tickets in the list of tickets to an index
+                                ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
 
-                                //check if an index in this new list matches index of the ticket item we are dealing with
-                                //and if it exist creates a copy of it with the new Name else keeps the ticket as it is
-                                if (i == index) ticketType.copy(name = newName) else ticketType
+                                    //check if an index in this new list matches index of the ticket item we are dealing with
+                                    //and if it exist creates a copy of it with the new Name else keeps the ticket as it is
+                                    if (i == index) ticketType.copy(name = newName) else ticketType
+                                }
+                            },
+
+                            onTicketTypePriceChange = { index, newPrice ->
+                                ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
+
+                                    //same for changing ticket name but converts newPrice to Double
+                                    if (i == index) ticketType.copy(
+                                        price = newPrice.toDoubleOrNull() ?: 0.0
+                                    ) else ticketType
+                                }
+                            },
+                            onTicketTypeAvailableChange = { index, newAvailable ->
+                                ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
+
+                                    //same for changing available tickets
+                                    if (i == index) ticketType.copy(
+                                        availableTickets = newAvailable.toIntOrNull() ?: 0
+                                    ) else ticketType
+                                }
+                            },
+                            onTicketTypeFreeChange = { index, isFree ->
+                                ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
+                                    if (i == index) {
+                                        if (isFree) ticketType.copy(isFree = true, price = 0.0)
+                                        else ticketType.copy(isFree = false)
+                                    } else {
+                                        ticketType
+                                    }
+                                }
+                            },
+                            onRemoveTicketType = { index ->
+
+                                // filter through the ticket type list using their index and exclude the index of the ticketType we removing
+                                ticketTypes = ticketTypes.filterIndexed { i, _ -> i != index }
                             }
-                        },
-
-                        onTicketTypePriceChange = { index, newPrice ->
-                            ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
-
-                                //same for changing ticket name but converts newPrice to Double
-                                if (i == index) ticketType.copy(
-                                    price = newPrice.toDoubleOrNull() ?: 0.0
-                                ) else ticketType
-                            }
-                        },
-                        onTicketTypeAvailableChange = { index, newAvailable ->
-                            ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
-
-                                //same for changing available tickets
-                                if (i == index) ticketType.copy(
-                                    availableTickets = newAvailable.toIntOrNull() ?: 0
-                                ) else ticketType
-                            }
-                        },
-                        onRemoveTicketType = { index ->
-
-                            // filter through the ticket type list using their index and exclude the index of the ticketType we removing
-                            ticketTypes = ticketTypes.filterIndexed { i, _ -> i != index }
-                        }
-                    )
+                        )
 
                     2 -> EventImageSection(
                         imageUri = imageUri,
+                        isUploadingImage = isUploadingImage,
                         onPickImageClick = { imagePickerLauncher.launch("image/*") },
                         realEventImages = realEventImages,
                         onImageSelected = { selectedImageUri ->
@@ -257,114 +326,122 @@ fun CreateEventScreen(
                         }
                     )
 
-                    3 -> FinishSection(
-                        eventName = eventName,
-                        startDate = startDate,
-                        endDate = endDate,
-                        isMultiDayEvent = isMultiDayEvent,
-                        eventTime = eventTime,
-                        eventVenue = eventVenue,
-                        eventStatus = eventStatus,
-                        eventCategory = eventCategory,
-                        eventOrganizer = eventOrganizer,
-                        eventDescription = eventDescription,
-                        ticketTypes = ticketTypes,
-                        imageUri = imageUri,
-                        onSaveDraftClick = {
-                            //call to validate event details
-                            validateEventData()
+                        3 -> FinishSection(
+                            eventName = eventName,
+                            startDate = startDate,
+                            endDate = endDate,
+                            isMultiDayEvent = isMultiDayEvent,
+                            eventTime = eventTime,
+                            durationLabel = durationLabel,
+                            eventVenue = eventVenue,
+                            eventStatus = eventStatus,
+                            isImportant = isImportant,
+                            eventCategory = eventCategory,
+                            eventOrganizer = eventOrganizer,
+                            eventDescription = eventDescription,
+                            ticketTypes = ticketTypes,
+                            imageUri = imageUri,
+                            onSaveDraftClick = {
+                                //call to validate event details
+                                validateEventData()
 
-                            //if there are errors in event data
-                            if (validationErrors.isNotEmpty()) {
-                                scope.launch {
-                                    //display error messages
-                                    validationErrors.forEach { error ->
-                                        snackbarHostState.showSnackbar(error)
+                                //if there are errors in event data
+                                if (validationErrors.isNotEmpty()) {
+                                    scope.launch {
+                                        //display error messages
+                                        validationErrors.forEach { error ->
+                                            snackbarHostState.showSnackbar(error)
+                                        }
                                     }
+                                } else {
+
+                                    //save to firestore
+                                    viewModel.saveEventToFirestore(
+                                        eventName = eventName,
+                                        startDate = startDate,
+                                        endDate = endDate,
+                                        isMultiDayEvent = isMultiDayEvent,
+                                        eventTime = eventTime,
+                                        durationLabel = durationLabel,
+                                        durationMinutes = durationMinutes,
+                                        eventVenue = eventVenue,
+                                        eventStatus = eventStatus,
+                                        isImportant = isImportant,
+                                        eventCategory = eventCategory,
+                                        eventOrganizer = eventOrganizer,
+                                        eventDescription = eventDescription,
+                                        ticketTypes = ticketTypes,
+                                        imageUri = imageUri,
+                                        isDraft = true,
+                                        //when successful
+                                        onSuccess = {
+                                            scope.launch {
+                                                markEventsUpdatedAndReturn()
+                                            }
+                                        },
+                                        //when saving fails
+                                        onFailure = { e ->
+                                            scope.launch {
+                                                //show an error message
+                                                snackbarHostState.showSnackbar(
+                                                    message = "Failed to save draft: ${e.message}",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                            }
+                                        }
+                                    )
                                 }
-                            } else {
+                            },
+                            onPublishClick = {
 
-                                //save to firestore
-                                viewModel.saveEventToFirestore(
-                                    eventName = eventName,
-                                    startDate = startDate,
-                                    endDate = endDate,
-                                    isMultiDayEvent = isMultiDayEvent,
-                                    eventTime = eventTime,
-                                    eventVenue = eventVenue,
-                                    eventStatus = eventStatus,
-                                    eventCategory = eventCategory,
-                                    eventOrganizer = eventOrganizer,
-                                    eventDescription = eventDescription,
-                                    ticketTypes = ticketTypes,
-                                    imageUri = imageUri,
-                                    isDraft = true,
-                                    //when successful
-                                    onSuccess = {
-                                        scope.launch {
-                                            //go back to Event Management Screen
-                                            navController.popBackStack()
-                                        }
-                                    },
-                                    //when saving fails
-                                    onFailure = { e ->
-                                        scope.launch {
-                                            //show an error message
-                                            snackbarHostState.showSnackbar(
-                                                message = "Failed to save draft: ${e.message}",
-                                                duration = SnackbarDuration.Short
-                                            )
+                                //call to validate event details
+                                validateEventData()
+
+                                //if there are errors in event data
+                                if (validationErrors.isNotEmpty()) {
+                                    scope.launch {
+                                        validationErrors.forEach { error ->
+                                            snackbarHostState.showSnackbar(error)
                                         }
                                     }
-                                )
-                            }
-                        },
-                        onPublishClick = {
-
-                            //call to validate event details
-                            validateEventData()
-
-                            //if there are errors in event data
-                            if (validationErrors.isNotEmpty()) {
-                                scope.launch {
-                                    validationErrors.forEach { error ->
-                                        snackbarHostState.showSnackbar(error)
-                                    }
+                                } else {
+                                    //save to firestore
+                                    viewModel.saveEventToFirestore(
+                                        eventName = eventName,
+                                        startDate = startDate,
+                                        endDate = endDate,
+                                        isMultiDayEvent = isMultiDayEvent,
+                                        eventTime = eventTime,
+                                        durationLabel = durationLabel,
+                                        durationMinutes = durationMinutes,
+                                        eventVenue = eventVenue,
+                                        eventStatus = eventStatus,
+                                        isImportant = isImportant,
+                                        eventCategory = eventCategory,
+                                        eventOrganizer = eventOrganizer,
+                                        eventDescription = eventDescription,
+                                        ticketTypes = ticketTypes,
+                                        imageUri = imageUri,
+                                        isDraft = false,
+                                        onSuccess = {
+                                            scope.launch {
+                                                //notificationViewModel.sendNewEventNotification()
+                                                markEventsUpdatedAndReturn()
+                                            }
+                                        },
+                                        onFailure = { e ->
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar(
+                                                    message = "Failed to publish event: ${e.message}",
+                                                    duration = SnackbarDuration.Short
+                                                )
+                                            }
+                                        }
+                                    )
                                 }
-                            } else {
-                                //save to firestore
-                                viewModel.saveEventToFirestore(
-                                    eventName = eventName,
-                                    startDate = startDate,
-                                    endDate = endDate,
-                                    isMultiDayEvent = isMultiDayEvent,
-                                    eventTime = eventTime,
-                                    eventVenue = eventVenue,
-                                    eventStatus = eventStatus,
-                                    eventCategory = eventCategory,
-                                    eventOrganizer = eventOrganizer,
-                                    eventDescription = eventDescription,
-                                    ticketTypes = ticketTypes,
-                                    imageUri = imageUri,
-                                    isDraft = false,
-                                    onSuccess = {
-                                        scope.launch {
-                                            //notificationViewModel.sendNewEventNotification()
-                                            navController.popBackStack()
-                                        }
-                                    },
-                                    onFailure = { e ->
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(
-                                                message = "Failed to publish event: ${e.message}",
-                                                duration = SnackbarDuration.Short
-                                            )
-                                        }
-                                    }
-                                )
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
@@ -379,9 +456,11 @@ fun FinishSection(
     endDate: String,
     isMultiDayEvent: Boolean,
     eventTime: String,
+    durationLabel: String,
     eventVenue: String,
     eventCategory: String,
     eventStatus: String,
+    isImportant: Boolean,
     ticketTypes: List<TicketType>,
     imageUri: Uri?,
     eventOrganizer: String,
@@ -422,8 +501,13 @@ fun FinishSection(
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text("Event Time: $eventTime", style = MaterialTheme.typography.bodyMedium)
+                    Text("Duration: $durationLabel", style = MaterialTheme.typography.bodyMedium)
                     Text("Event Venue: $eventVenue", style = MaterialTheme.typography.bodyMedium)
                     Text("Event Status: $eventStatus", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Featured Event: ${if (isImportant) "Yes" else "No"}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                     Text("Event Category: $eventCategory", style = MaterialTheme.typography.bodyMedium)
                     Text("Event Organizer: $eventOrganizer", style = MaterialTheme.typography.bodyMedium)
                 }
@@ -513,14 +597,19 @@ fun EventDetailsSection(
     endDate: String,
     isMultiDayEvent: Boolean,
     eventTime: String,
+    durationLabel: String,
+    durationMinutes: Int,
     eventVenue: String,
     eventStatus: String,
+    isImportant: Boolean,
     onEventNameChange: (String) -> Unit,
     onStartDateChange: (String) -> Unit,
     onEndDateChange: (String) -> Unit,
     onIsMultiDayEventChange: (Boolean) -> Unit,
     onEventTimeChange: (String) -> Unit,
+    onDurationChange: (String, Int) -> Unit,
     onEventVenueChange: (String) -> Unit,
+    onImportantChange: (Boolean) -> Unit,
     onEventCategoryChange: (String) -> Unit,
     onEventOrganizerChange: (String) -> Unit,
     onEventDescriptionChange: (String) -> Unit,
@@ -727,6 +816,14 @@ fun EventDetailsSection(
         timePickerDialog.show()
     }
 
+    val minDuration = 30
+    val maxDuration = 720
+    val durationStep = 15
+    val sliderSteps = ((maxDuration - minDuration) / durationStep) - 1
+    var durationSliderValue by remember {
+        mutableFloatStateOf((if (durationMinutes > 0) durationMinutes else 60).toFloat())
+    }
+
 
     //For all content
     LazyColumn(
@@ -886,6 +983,33 @@ fun EventDetailsSection(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+        // event duration
+        item {
+            Text(
+                text = "Event Duration",
+                style = MaterialTheme.typography.labelLarge
+            )
+            Slider(
+                value = durationSliderValue,
+                onValueChange = { rawValue ->
+                    val snapped = (rawValue / durationStep).roundToInt() * durationStep
+                    val bounded = snapped.coerceIn(minDuration, maxDuration)
+                    durationSliderValue = bounded.toFloat()
+                    onDurationChange(formatDurationLabel(bounded), bounded)
+                },
+                valueRange = minDuration.toFloat()..maxDuration.toFloat(),
+                steps = sliderSteps,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (durationMinutes > 0) {
+                Text(
+                    text = "Selected: $durationLabel ($durationMinutes min)",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
         //event venue
         item {
             OutlinedTextField(
@@ -901,10 +1025,36 @@ fun EventDetailsSection(
                 value = eventStatus,
                 onValueChange = {},
                 readOnly = true,
-                enabled = false,
                 label = { Text("Event Status") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                supportingText = {
+                    Text(
+                        text = "Status is managed automatically.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             )
+        }
+        // featured event toggle
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Mark as Featured", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Featured events can be shown on user home feeds.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = isImportant,
+                    onCheckedChange = onImportantChange
+                )
+            }
         }
         //event category
         item {
@@ -913,32 +1063,65 @@ fun EventDetailsSection(
 
             var expanded by remember { mutableStateOf(false) }
 
-            OutlinedTextField(
-                value = eventCategory,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Event Category") },
-                trailingIcon = {
-                    IconButton(onClick = { expanded = true }) {
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Drop Down")
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            DropdownMenu(
-                expanded = expanded, // Use the tracked state variable
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .animateContentSize()
             ) {
-                eventCategoryOptions.forEach { category ->
-                    DropdownMenuItem(
-                        onClick = {
-                            onEventCategoryChange(category) // Update event category
-                            expanded = false // Close menu
-                        },
-                        text = { Text(text = category) } // Display the category text
-                    )
+                OutlinedTextField(
+                    value = eventCategory,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Event Category") },
+                    trailingIcon = {
+                        IconButton(onClick = { expanded = !expanded }) {
+                            Icon(
+                                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                contentDescription = "Toggle Category List"
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = fadeIn() + expandVertically(),
+                    exit = fadeOut() + shrinkVertically()
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        tonalElevation = 2.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                        ) {
+                            eventCategoryOptions.forEach { category ->
+                                val isSelected = eventCategory == category
+                                Text(
+                                    text = category,
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            onEventCategoryChange(category)
+                                            expanded = false
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1004,6 +1187,7 @@ fun TicketDetailsSection(
     onTicketTypeNameChange: (index: Int, newName: String) -> Unit,
     onTicketTypePriceChange: (index: Int, newPrice: String) -> Unit,
     onTicketTypeAvailableChange: (index: Int, newAvailable: String) -> Unit,
+    onTicketTypeFreeChange: (index: Int, isFree: Boolean) -> Unit,
     onRemoveTicketType: (index: Int) -> Unit
 ) {
 
@@ -1024,7 +1208,9 @@ fun TicketDetailsSection(
         Spacer(modifier = Modifier.height(16.dp))
 
         //For tickets
-        LazyColumn {
+        LazyColumn(
+            modifier = Modifier.weight(1f)
+        ) {
 
             //diaplay only one ticket initialized at top
             items(ticketTypes.size) { index ->
@@ -1052,6 +1238,9 @@ fun TicketDetailsSection(
                             newAvailable
                         )
                     }, //call to available in a particular index in ticket type list
+                    onTicketTypeFreeChange = { isFree ->
+                        onTicketTypeFreeChange(index, isFree)
+                    },
                     onRemoveTicketType = { onRemoveTicketType(index) } //call to remove ticket
                 )
 
@@ -1065,7 +1254,9 @@ fun TicketDetailsSection(
         //Add Ticket Button
         Button(
             onClick = onAddTicketType,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .navigationBarsPadding()
         ) {
             Icon(imageVector = Icons.Default.Add, contentDescription = "Add Ticket Type")
             Text("Add Ticket Type", modifier = Modifier.padding(start = 8.dp))
@@ -1079,6 +1270,7 @@ fun TicketTypeItem(
     onTicketTypeNameChange: (newName: String) -> Unit,
     onTicketTypePriceChange: (newPrice: String) -> Unit,
     onTicketTypeAvailableChange: (newAvailable: String) -> Unit,
+    onTicketTypeFreeChange: (isFree: Boolean) -> Unit,
     onRemoveTicketType: () -> Unit
 ) {
 
@@ -1129,10 +1321,31 @@ fun TicketTypeItem(
                             ticketPrice = ""
                         }
                     },
+                enabled = !ticketType.isFree,
 
                 //Show only number keyboard type
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Free Ticket", style = MaterialTheme.typography.bodyMedium)
+                Switch(
+                    checked = ticketType.isFree,
+                    onCheckedChange = { isFree ->
+                        onTicketTypeFreeChange(isFree)
+                        if (isFree) {
+                            ticketPrice = "0"
+                            onTicketTypePriceChange("0")
+                        }
+                    }
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -1183,13 +1396,19 @@ fun TicketTypeItem(
 @Composable
 fun EventImageSection(
     imageUri: Uri?,
+    isUploadingImage: Boolean,
     onPickImageClick: () -> Unit,
     realEventImages: Map<String, List<String>>, // Map of category to image
     onImageSelected: (Uri) -> Unit // Callback to handle image selection
 ) {
 
-    //for all content
-    LazyColumn(modifier = Modifier.padding(16.dp)) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        //for all content
+        LazyColumn(
+            modifier = Modifier
+                .padding(16.dp)
+                .alpha(if (isUploadingImage) 0.45f else 1f)
+        ) {
 
         //Adding Image section
         item {
@@ -1204,9 +1423,19 @@ fun EventImageSection(
                 )
 
                 //Add Image Button
-                Button(onClick = onPickImageClick) {
+                Button(onClick = onPickImageClick, enabled = !isUploadingImage) {
                     Text("Pick Image")
                 }
+            }
+            if (isUploadingImage) {
+                Spacer(modifier = Modifier.height(8.dp))
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Uploading image to cloud...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -1247,25 +1476,111 @@ fun EventImageSection(
         //Real event images
         item {
             // Real event images organized by categories
-            realEventImages.forEach { (category, images) ->
+            if (realEventImages.isEmpty()) {
                 Text(
-                    text = category,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                    text = "No Cloudinary sample images configured yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) {
+            } else {
+                realEventImages.forEach { (category, images) ->
+                    Text(
+                        text = category,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                    )
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
 
-                    //display real event images
-                    items(images.size) { index ->
-                        RealEventImageCard(images[index], onImageSelected)
+                        //display real event images
+                        items(images.size) { index ->
+                            RealEventImageCard(images[index], onImageSelected)
+                        }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
+        }
+        }
+
+        AnimatedVisibility(
+            visible = isUploadingImage,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CircularProgressIndicator(
+                        strokeWidth = 3.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Uploading image...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Please wait",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun NavController.getBackStackEntryOrNull(route: String): NavBackStackEntry? {
+    return runCatching { getBackStackEntry(route) }.getOrNull()
+}
+
+
+@Composable
+private fun rememberCloudinarySampleImages(
+    categories: List<String>,
+    samplesPerCategory: Int,
+): Map<String, List<String>> {
+    val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
+    if (cloudName.isBlank() || cloudName == "YOUR_CLOUD_NAME") return emptyMap()
+
+    val safeCount = samplesPerCategory.coerceAtLeast(1)
+    Log.d(
+        CLOUDINARY_DEBUG_TAG,
+        "Building sample urls with cloudName='$cloudName', categories=$categories, count=$safeCount"
+    )
+
+    return remember(cloudName, categories, safeCount) {
+        categories.associateWith { categoryDisplay ->
+            val token = categoryDisplay.replace(" ", "").trim()
+
+            // Deterministic list: exactly N samples per category.
+            val distinctUrls = (1..safeCount).map { index ->
+                "https://res.cloudinary.com/$cloudName/image/upload/${token}${index}.jpg"
+            }
+            Log.d(
+                CLOUDINARY_DEBUG_TAG,
+                "Category '$categoryDisplay' generated ${distinctUrls.size} url candidates. First candidates=${
+                    distinctUrls.take(
+                        8
+                    )
+                }"
+            )
+            distinctUrls
         }
     }
 }
@@ -1300,6 +1615,29 @@ fun RealEventImageCard(
     imageUrl: String,
     onImageSelected: (Uri) -> Unit // Callback to notify parent about image selection
 ) {
+    val painter = rememberAsyncImagePainter(imageUrl)
+
+    LaunchedEffect(imageUrl, painter.state) {
+        when (val state = painter.state) {
+            is AsyncImagePainter.State.Success -> {
+                Log.d(CLOUDINARY_DEBUG_TAG, "Image load success: $imageUrl")
+            }
+
+            is AsyncImagePainter.State.Error -> {
+                Log.e(
+                    CLOUDINARY_DEBUG_TAG,
+                    "Image load failed: $imageUrl, throwable=${state.result.throwable.message}",
+                    state.result.throwable
+                )
+            }
+
+            is AsyncImagePainter.State.Loading -> {
+                Log.d(CLOUDINARY_DEBUG_TAG, "Image loading: $imageUrl")
+            }
+
+            is AsyncImagePainter.State.Empty -> Unit
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -1309,7 +1647,7 @@ fun RealEventImageCard(
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Image(
-            painter = rememberAsyncImagePainter(imageUrl),
+            painter = painter,
             contentDescription = "Real Event Image",
             contentScale = ContentScale.Crop,
             modifier = Modifier
@@ -1334,6 +1672,7 @@ fun RealEventImageCard(
 fun CreateEventScreenPreview() {
     EventImageSection(
         imageUri = null,
+        isUploadingImage = false,
         onPickImageClick = {},
         realEventImages = mapOf(
             "Concerts" to listOf(""),
@@ -1342,3 +1681,4 @@ fun CreateEventScreenPreview() {
         onImageSelected = {}
     )
 }
+

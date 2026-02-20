@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -57,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.eventglow.common.LoadState
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.navigation.navigateAndClearTo
 import com.example.eventglow.ui.theme.EventGlowTheme
 import kotlinx.coroutines.launch
 
@@ -81,7 +83,7 @@ fun createAccountScreen(
 
     LaunchedEffect(createAccountState) {
         if (createAccountState is CreateAccountState.Success) {
-            navController.navigate(Routes.EMAIL_VERIFICATION_SCREEN)
+            navController.navigateAndClearTo(Routes.EMAIL_VERIFICATION_SCREEN)
         }
     }
 
@@ -324,11 +326,19 @@ private fun CreateAccountScreenContent(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Text(
-                    text = "Create Account",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(22.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Create Account",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             if (!usernameMessage.isNullOrBlank()) {
@@ -340,10 +350,6 @@ private fun CreateAccountScreenContent(
                 )
             }
 
-            if (isLoading) {
-                Spacer(modifier = Modifier.height(16.dp))
-                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-            }
         }
     }
 }

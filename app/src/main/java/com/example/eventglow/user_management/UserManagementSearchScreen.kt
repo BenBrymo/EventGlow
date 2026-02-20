@@ -127,7 +127,7 @@ fun UserRow(user: User, onClick: (User) -> Unit) {
                 color = Color.Gray
             )
             Text(
-                text = if (user.isSuspended) "Suspended" else " Active",
+                text = if (user.notificationsEnabled) "Notifications: On" else "Notifications: Off",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.Gray
             )
@@ -146,14 +146,14 @@ fun UserManagementSearchContentPreview() {
                 userName = "Alice",
                 email = "alice@example.com",
                 role = "admin",
-                isSuspended = false
+                notificationsEnabled = true
             ),
             User(
                 id = "u2",
                 userName = "Alina",
                 email = "alina@example.com",
                 role = "user",
-                isSuspended = true
+                notificationsEnabled = false
             )
         ),
         onSearchQueryChange = {},
@@ -171,7 +171,7 @@ fun UserRowPreview() {
             userName = "Kelvin",
             email = "kelvin@example.com",
             role = "user",
-            isSuspended = false
+            notificationsEnabled = true
         ),
         onClick = {}
     )

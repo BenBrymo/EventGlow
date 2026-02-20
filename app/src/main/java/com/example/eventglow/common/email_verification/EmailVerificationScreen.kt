@@ -10,16 +10,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.eventglow.common.LoadState
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.navigation.navigateAndClearTo
+import com.example.eventglow.ui.theme.Success
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,82 +29,54 @@ fun EmailVerificationScreen(
     navController: NavController,
     viewModel: EmailVerificationViewModel = viewModel(),
 ) {
-
-    val scope = rememberCoroutineScope()
-
     val context = LocalContext.current
+    val loadState by viewModel.loadState.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val emailSentCount by viewModel.emailSentCount.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var isButtonEnabled by remember { mutableStateOf(true) }
     var timeRemaining by remember { mutableStateOf(60) }
-    var timeRunning = remember { mutableStateOf(false) }
+    var timeRunning by remember { mutableStateOf(false) }
 
 
     LaunchedEffect(Unit) {
-        viewModel.sendVerificationEmail(
-            onSuccess = {
-                scope.launch {
-                    //disable button
-                    isButtonEnabled = false
-                    //start clock
-                    timeRunning.value = true
-                    // jumpstart counting
-                    while (timeRemaining > 0) {
-                        delay(1000)
-                        //decrease time
-                        timeRemaining--
-                    }
-                    //enable button
-                    isButtonEnabled = true
-                    //stop clock
-                    timeRunning.value = false
-                }
-            },
-            onError = { error ->
-                // Show error message to the user
-                Log.e("EmailVerification", "Failed to send verification email: ${error.message}")
-            }
-        )
+        viewModel.sendVerificationEmail()
+    }
+
+    LaunchedEffect(emailSentCount) {
+        if (emailSentCount <= 0) return@LaunchedEffect
+        isButtonEnabled = false
+        timeRemaining = 60
+        timeRunning = true
+        while (timeRemaining > 0) {
+            delay(1000)
+            timeRemaining--
+        }
+        isButtonEnabled = true
+        timeRunning = false
+    }
+
+    LaunchedEffect(errorMessage) {
+        val message = errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        Log.e("EmailVerification", message)
+        viewModel.clearError()
     }
 
     EmailVerificationContent(
         isButtonEnabled = isButtonEnabled,
         timeRemaining = timeRemaining,
+        loadState = loadState,
+        snackbarHostState = snackbarHostState,
         onBack = { navController.popBackStack() },
         onResend = {
-            scope.launch {
-                viewModel.sendVerificationEmail(
-                    onSuccess = {
-                        scope.launch {
-                            Toast.makeText(context, "Email has been sent again", Toast.LENGTH_SHORT).show()
-                            //disable button
-                            isButtonEnabled = false
-                            //reset time remaining
-                            timeRemaining = 60
-                            //start clock
-                            timeRunning.value = true
-                            // jumpstart counting
-                            while (timeRemaining > 0) {
-                                delay(1000)
-                                //decrease time
-                                timeRemaining--
-                            }
-                            //enable button
-                            isButtonEnabled = true
-                            //stop clock
-                            timeRunning.value = false
-                        }
-                    },
-                    onError = {
-                        Toast.makeText(
-                            context,
-                            "An error occurred please wait for sometime",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                )
+            viewModel.sendVerificationEmail()
+            if (!timeRunning) {
+                Toast.makeText(context, "Email has been sent again", Toast.LENGTH_SHORT).show()
             }
         },
-        onDone = { navController.navigate(Routes.LOGIN_SCREEN) }
+        onDone = { navController.navigateAndClearTo(Routes.LOGIN_SCREEN) }
     )
 }
 
@@ -112,11 +85,14 @@ fun EmailVerificationScreen(
 fun EmailVerificationContent(
     isButtonEnabled: Boolean,
     timeRemaining: Int,
+    loadState: LoadState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onResend: () -> Unit,
     onDone: () -> Unit
 ) {
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -146,7 +122,7 @@ fun EmailVerificationContent(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Success",
-                    tint = Color.Green,
+                    tint = Success,
                     modifier = Modifier.size(120.dp)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
@@ -159,8 +135,15 @@ fun EmailVerificationContent(
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = onResend,
-                    enabled = isButtonEnabled
+                    enabled = isButtonEnabled && loadState != LoadState.LOADING
                 ) {
+                    if (loadState == LoadState.LOADING) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                     Text(text = "Resend Email")
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -168,7 +151,7 @@ fun EmailVerificationContent(
                 if (!isButtonEnabled) {
                     Text(
                         text = timeRemaining.toString(),
-                        color = MaterialTheme.colorScheme.inverseSurface,
+                        color = MaterialTheme.colorScheme.onBackground,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -200,6 +183,8 @@ fun EmailVerificationScreenPreview() {
     EmailVerificationContent(
         isButtonEnabled = false,
         timeRemaining = 42,
+        loadState = LoadState.SUCCESS,
+        snackbarHostState = SnackbarHostState(),
         onBack = {},
         onResend = {},
         onDone = {}

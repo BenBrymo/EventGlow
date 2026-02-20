@@ -18,6 +18,7 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
     fun saveUserInfo(
         email: String,
         userName: String,
+        fcmToken: String?,
         profilePictureUrl: String?,
         headerPictureUrl: String?,
         role: String,
@@ -29,6 +30,7 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
         with(sharedPreferences.edit()) {
             putString("USER_EMAIL", email)
             putString("USERNAME", userName)
+            putString("FCM_TOKEN", fcmToken)
             putString("PROFILE_PICTURE_URL", profilePictureUrl)
             putString("HEADER_PICTURE_URL", headerPictureUrl)
             putString("ROLE", role)
@@ -45,6 +47,7 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
         return mapOf(
             "USER_EMAIL" to sharedPreferences.getString("USER_EMAIL", null),
             "USERNAME" to sharedPreferences.getString("USERNAME", null),
+            "FCM_TOKEN" to sharedPreferences.getString("FCM_TOKEN", null),
             "PROFILE_PICTURE_URL" to sharedPreferences.getString("PROFILE_PICTURE_URL", null),
             "HEADER_PICTURE_URL" to sharedPreferences.getString("HEADER_PICTURE_URL", null),
             "ROLE" to sharedPreferences.getString("ROLE", null),
@@ -139,6 +142,17 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
             }
         } catch (e: Exception) {
             Log.e("UserPreferences", "Failed to update header image URL", e)
+        }
+    }
+
+    fun updateFcmToken(newFcmToken: String?) {
+        try {
+            with(sharedPreferences.edit()) {
+                putString("FCM_TOKEN", newFcmToken)
+                apply()
+            }
+        } catch (e: Exception) {
+            Log.e("UserPreferences", "Failed to update fcm token", e)
         }
     }
 

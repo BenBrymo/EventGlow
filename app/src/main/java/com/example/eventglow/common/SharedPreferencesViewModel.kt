@@ -14,4 +14,8 @@ class SharedPreferencesViewModel(application: Application) : AndroidViewModel(ap
     private val _userInfo = MutableStateFlow(sharedPreferences.getUserInfo())
     val userInfo: StateFlow<Map<String, String?>> = _userInfo
 
+    fun refreshUserInfo() {
+        _userInfo.value = sharedPreferences.getUserInfo()
+    }
+
 }

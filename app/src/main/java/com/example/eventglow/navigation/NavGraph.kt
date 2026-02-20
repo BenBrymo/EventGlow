@@ -23,7 +23,11 @@ import com.example.eventglow.events_management.EventDetailsAdminScreen
 import com.example.eventglow.events_management.FilterSearchScreenAdmin
 import com.example.eventglow.events_management.FilteredResultScreenAdmin
 import com.example.eventglow.events_management.ManageEventsScreen
-import com.example.eventglow.settings.SettingsScreen
+import com.example.eventglow.settings.AdminChangePasswordScreen
+import com.example.eventglow.settings.AdminHelpCenterScreen
+import com.example.eventglow.settings.AdminSettingsScreen
+import com.example.eventglow.settings.AdminSupportScreen
+import com.example.eventglow.settings.AdminUpdateProfileScreen
 import com.example.eventglow.ticket_management.TicketManagementScreen
 import com.example.eventglow.user.UserMainScreen
 import com.example.eventglow.user_management.ManageUsersScreen
@@ -38,7 +42,7 @@ object Routes {
     const val PASSWORD_RESET_CONFIRMATION_SCREEN = "password_reset_confirmation_screen"
     const val EMAIL_VERIFICATION_SCREEN = "email_verification_screen"
     const val USER_MAIN_SCREEN = "user_main_screen"
-    const val ADMIN_MAIN_SCREEN = "admin_main_screen/{username}"
+    const val ADMIN_MAIN_SCREEN = "admin_main_screen"
     const val EVENTS_MANAGEMENT_SCREEN = "events_management_screen"
     const val CREATE_EVENT_SCREEN = "create_event_screen"
     const val ADMIN_PROFILE_SCREEN = "admin_profile_screen"
@@ -57,6 +61,10 @@ object Routes {
     const val REPORTING_AND_ANALYTICS = "reporting_and_analytics"
     const val USER_MANAGEMENT_SEARCH_SCREEN = "user_management_search_screen"
     const val SETTINGS = "settings_screen"
+    const val ADMIN_CHANGE_PASSWORD_SCREEN = "admin_change_password_screen"
+    const val ADMIN_SUPPORT_SCREEN = "admin_support_screen"
+    const val ADMIN_HELP_CENTER_SCREEN = "admin_help_center_screen"
+    const val ADMIN_UPDATE_PROFILE_SCREEN = "admin_update_profile_screen"
 }
 
 
@@ -117,8 +125,20 @@ fun NavGraph(navController: NavHostController) {
         }
 
         // defines user main screen route
-        composable(Routes.USER_MAIN_SCREEN) {
-            UserMainScreen(navController = navController)
+        composable(
+            route = "${Routes.USER_MAIN_SCREEN}?eventId={eventId}",
+            arguments = listOf(
+                navArgument("eventId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            UserMainScreen(
+                navController = navController,
+                initialEventId = backStackEntry.arguments?.getString("eventId")
+            )
         }
 
         // defines admin search screen route
@@ -192,7 +212,30 @@ fun NavGraph(navController: NavHostController) {
 //        }
 
         composable(Routes.SETTINGS) {
-            SettingsScreen(navController = navController)
+            AdminSettingsScreen(navController = navController)
+        }
+
+        composable(Routes.ADMIN_CHANGE_PASSWORD_SCREEN) {
+            AdminChangePasswordScreen(
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.ADMIN_SUPPORT_SCREEN) {
+            AdminSupportScreen(
+                onBackClick = { navController.popBackStack() },
+                onHelpCenterClick = { navController.navigate(Routes.ADMIN_HELP_CENTER_SCREEN) }
+            )
+        }
+
+        composable(Routes.ADMIN_HELP_CENTER_SCREEN) {
+            AdminHelpCenterScreen(navController = navController)
+        }
+
+        composable(Routes.ADMIN_UPDATE_PROFILE_SCREEN) {
+            AdminUpdateProfileScreen(
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }

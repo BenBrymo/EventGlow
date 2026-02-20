@@ -819,14 +819,14 @@ fun UsersManagementContentPreview() {
                 userName = "Alice",
                 email = "alice@example.com",
                 role = "admin",
-                isSuspended = false
+                notificationsEnabled = true
             ),
             User(
                 id = "u2",
                 userName = "Brian",
                 email = "brian@example.com",
                 role = "user",
-                isSuspended = true
+                notificationsEnabled = false
             )
         ),
         onAddUserButtonClick = {}
@@ -854,7 +854,7 @@ fun UserItemPreview() {
             userName = "Claire",
             email = "claire@example.com",
             role = "user",
-            isSuspended = false
+            notificationsEnabled = true
         )
     )
 }

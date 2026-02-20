@@ -53,7 +53,8 @@ class UserManagementViewModel : ViewModel() {
                                     userName = data?.get("username") as? String ?: "",
                                     email = data?.get("email") as? String ?: "",
                                     role = data?.get("role") as? String ?: "user", // Default role is "user"
-                                    isSuspended = data?.get("isSuspended") as? Boolean ?: false,
+                                    notificationsEnabled = data?.get("notificationsEnabled") as? Boolean ?: true,
+                                    fcmToken = data?.get("fcmToken") as? String,
                                     boughtTickets = (data?.get("boughtTickets") as? List<Map<String, Any>>)?.map {
                                         BoughtTicket(
                                             transactionReference = it["transactionReference"] as? String ?: "",
@@ -127,7 +128,8 @@ class UserManagementViewModel : ViewModel() {
                         "email" to email,
                         "role" to role, // sets role to user for every new account
                         "password" to password,
-                        "isSuspended" to false
+                        "notificationsEnabled" to true,
+                        "fcmToken" to null
                     )
 
                     // Store user information in Firestore
@@ -169,9 +171,9 @@ class UserManagementViewModel : ViewModel() {
         }
     }
 
-    fun suspendUser(userId: String, suspend: Boolean) {
+    fun updateNotificationsEnabled(userId: String, enabled: Boolean) {
         viewModelScope.launch {
-            usersCollection.document(userId).update("isSuspended", suspend).addOnSuccessListener {
+            usersCollection.document(userId).update("notificationsEnabled", enabled).addOnSuccessListener {
                 fetchUsers()
             }
         }

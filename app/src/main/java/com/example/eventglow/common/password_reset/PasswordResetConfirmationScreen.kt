@@ -8,15 +8,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.example.eventglow.common.LoadState
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.navigation.navigateAndClearTo
+import com.example.eventglow.ui.theme.Success
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,12 +26,12 @@ fun PasswordResetConfirmationScreen(
     viewModel: PasswordRecoveryViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     sharedPrefsViewModel: SharedPreferencesViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
-
-    val scope = rememberCoroutineScope()
-
     var isButtonEnabled by remember { mutableStateOf(true) }
     var timeRemaining by remember { mutableStateOf(60) }
-    var timeRunning = remember { mutableStateOf(false) }
+    val loadState by viewModel.loadState.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val passwordResetEmailSentCount by viewModel.passwordResetEmailSentCount.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     //shared preferences data
     val userData by sharedPrefsViewModel.userInfo.collectAsState()
@@ -38,43 +39,34 @@ fun PasswordResetConfirmationScreen(
     //retrives email from userData
     val email = userData["USER_EMAIL"]
 
+    LaunchedEffect(errorMessage) {
+        val message = errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearError()
+    }
+
+    LaunchedEffect(passwordResetEmailSentCount) {
+        if (passwordResetEmailSentCount <= 0) return@LaunchedEffect
+        isButtonEnabled = false
+        timeRemaining = 60
+        while (timeRemaining > 0) {
+            delay(1000)
+            timeRemaining--
+        }
+        isButtonEnabled = true
+    }
+
     PasswordResetConfirmationContent(
         isButtonEnabled = isButtonEnabled,
         timeRemaining = timeRemaining,
+        loadState = loadState,
+        snackbarHostState = snackbarHostState,
         onBack = { navController.popBackStack() },
         onResend = {
-            email?.let { value ->
-                scope.launch {
-                    viewModel.sendPasswordResetEmail(
-                        value,
-                        onSuccess = {
-                            scope.launch {
-                                //disable button
-                                isButtonEnabled = false
-                                //reset time remaining
-                                timeRemaining = 60
-                                //start clock
-                                timeRunning.value = true
-                                // jumpstart counting
-                                while (timeRemaining > 0) {
-                                    delay(1000)
-                                    //decrease time
-                                    timeRemaining--
-                                }
-                                //enable button
-                                isButtonEnabled = true
-                                //stop clock
-                                timeRunning.value = false
-                            }
-                        },
-                        onError = {
-                            // no-op UI side effects are handled outside of preview
-                        }
-                    )
-                }
-            }
+            val targetEmail = email?.trim().orEmpty()
+            viewModel.sendPasswordResetEmail(targetEmail)
         },
-        onDone = { navController.navigate(Routes.LOGIN_SCREEN) }
+        onDone = { navController.navigateAndClearTo(Routes.LOGIN_SCREEN) }
     )
 }
 
@@ -83,11 +75,14 @@ fun PasswordResetConfirmationScreen(
 fun PasswordResetConfirmationContent(
     isButtonEnabled: Boolean,
     timeRemaining: Int,
+    loadState: LoadState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onResend: () -> Unit,
     onDone: () -> Unit
 ) {
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -117,7 +112,7 @@ fun PasswordResetConfirmationContent(
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
                     contentDescription = "Success",
-                    tint = Color.Green,
+                    tint = Success,
                     modifier = Modifier.size(120.dp)
                 )
                 Spacer(modifier = Modifier.height(24.dp))
@@ -139,8 +134,15 @@ fun PasswordResetConfirmationContent(
                 //Resend Email Button
                 Button(
                     onClick = onResend,
-                    enabled = isButtonEnabled
+                    enabled = isButtonEnabled && loadState != LoadState.LOADING
                 ) {
+                    if (loadState == LoadState.LOADING) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                     Text(text = "Resend Email")
                 }
                 Spacer(modifier = Modifier.height(10.dp))
@@ -149,7 +151,7 @@ fun PasswordResetConfirmationContent(
                 if (!isButtonEnabled) {
                     Text(
                         text = timeRemaining.toString(),
-                        color = MaterialTheme.colorScheme.inverseSurface,
+                        color = MaterialTheme.colorScheme.onBackground,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -169,12 +171,15 @@ fun PasswordResetConfirmationContent(
     }
 }
 
+
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun PasswordResetConfirmationContentPreview() {
     PasswordResetConfirmationContent(
         isButtonEnabled = false,
         timeRemaining = 35,
+        loadState = LoadState.SUCCESS,
+        snackbarHostState = SnackbarHostState(),
         onBack = {},
         onResend = {},
         onDone = {}

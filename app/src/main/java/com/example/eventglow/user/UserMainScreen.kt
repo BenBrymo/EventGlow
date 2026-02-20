@@ -8,7 +8,10 @@ import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
@@ -27,10 +30,21 @@ import com.example.eventglow.ui.theme.LightGrayText
 
 
 @Composable
-fun UserMainScreen(navController: NavController) {
+fun UserMainScreen(
+    navController: NavController,
+    initialEventId: String? = null
+) {
 
     // Use the same NavHostController for both the Scaffold and BottomNavigation
     val bottomNavController = rememberNavController()
+    val hasHandledInitialEvent = remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialEventId) {
+        if (!hasHandledInitialEvent.value && !initialEventId.isNullOrBlank()) {
+            hasHandledInitialEvent.value = true
+            bottomNavController.navigate("detailed_event_screen/$initialEventId")
+        }
+    }
 
     // Scaffold to provide a basic material layout structure
     Scaffold(
@@ -155,7 +169,7 @@ fun BottomNavGraph(
         }
 
         composable(RoutesUser.SETTINGS) {
-            SettingsScreen(navController = navController)
+            UserSettingsScreen(navController = navController)
         }
     }
 }

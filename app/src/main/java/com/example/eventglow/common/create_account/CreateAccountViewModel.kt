@@ -7,7 +7,9 @@ import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.UserPreferences
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +30,9 @@ class CreateAccountViewModel(application: Application) : BaseViewModel(applicati
 
     //role of user set to user by default
     private val role = "admin"
+    private val createAccountThrottleKey = "create_account_auth"
+    private val maxFailedAttempts = 2
+    private val lockoutDurationMillis = 60_000L
 
     suspend fun checkIfUsernameIsTaken(username: String, onResult: (Boolean) -> Unit) {
         if (!isNetworkAvailable()) {
@@ -52,6 +57,12 @@ class CreateAccountViewModel(application: Application) : BaseViewModel(applicati
     }
 
     fun createAccount(username: String, email: String, password: String) {
+        getThrottleLockMessage(createAccountThrottleKey)?.let { message ->
+            setFailure(message)
+            _createAccountState.value = CreateAccountState.Failure(message)
+            return
+        }
+
         if (!isNetworkAvailable()) {
             val message = "No internet connection. Check your network and try again."
             setFailure(message)
@@ -65,17 +76,33 @@ class CreateAccountViewModel(application: Application) : BaseViewModel(applicati
         launchWhenConnected(
             tag = "CreateAccountViewModel",
             onError = { throwable ->
-                _createAccountState.value = CreateAccountState.Failure(resolveErrorMessage(throwable))
+                val resolved = resolveErrorMessage(throwable)
+                val isInputError = isAccountInputAuthError(throwable, resolved)
+                val message = if (isInputError) {
+                    resolveThrottledFailureMessage(
+                        throttleKey = createAccountThrottleKey,
+                        isThrottleCandidate = true,
+                        baseMessage = resolved,
+                        maxFailedAttempts = maxFailedAttempts,
+                        lockoutDurationMillis = lockoutDurationMillis
+                    )
+                } else {
+                    resolved
+                }
+                setFailure(message)
+                _createAccountState.value = CreateAccountState.Failure(message)
             }
         ) {
             auth.createUserWithEmailAndPassword(email, password).await()
             val user = auth.currentUser ?: throw IllegalStateException("User was not created")
+            val fcmToken = runCatching { FirebaseMessaging.getInstance().token.await() }.getOrNull()
 
             val userMap = hashMapOf(
                 "username" to username,
                 "email" to email,
                 "role" to role,
-                "isSuspended" to false,
+                "notificationsEnabled" to true,
+                "fcmToken" to fcmToken,
                 "profilePictureUrl" to null,
                 "headerPictureUrl" to null,
                 "boughtTickets" to emptyList<BoughtTicket>(),
@@ -92,6 +119,7 @@ class CreateAccountViewModel(application: Application) : BaseViewModel(applicati
             sharedPreferences.saveUserInfo(
                 email = email,
                 userName = username,
+                fcmToken = fcmToken,
                 profilePictureUrl = null,
                 headerPictureUrl = null,
                 role = role,
@@ -101,11 +129,31 @@ class CreateAccountViewModel(application: Application) : BaseViewModel(applicati
                 favoriteEvents = emptyList()
             )
 
+            clearThrottle(createAccountThrottleKey)
             setSuccess()
             _createAccountState.value = CreateAccountState.Success(
                 message = "Great! your account was created successfully"
             )
         }
+    }
+
+    private fun isAccountInputAuthError(throwable: Throwable, resolvedMessage: String): Boolean {
+        if (throwable is FirebaseAuthException) {
+            return when (throwable.errorCode) {
+                "ERROR_INVALID_EMAIL",
+                "ERROR_WEAK_PASSWORD",
+                "ERROR_EMAIL_ALREADY_IN_USE",
+                "ERROR_INVALID_CREDENTIAL" -> true
+
+                else -> false
+            }
+        }
+
+        val lower = resolvedMessage.lowercase()
+        return lower.contains("invalid email") ||
+                lower.contains("too weak") ||
+                lower.contains("already in use") ||
+                lower.contains("invalid credential")
     }
 }
 

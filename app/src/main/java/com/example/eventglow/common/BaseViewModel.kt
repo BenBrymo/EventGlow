@@ -16,6 +16,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 open class BaseViewModel(application: Application) : AndroidViewModel(application) {
+    private data class ThrottleState(
+        var failedAttempts: Int = 0,
+        var lockoutUntilMillis: Long = 0L
+    )
+
+    private val throttleStates = mutableMapOf<String, ThrottleState>()
 
     private val _loadState = MutableStateFlow(LoadState.SUCCESS)
     val loadState: StateFlow<LoadState> = _loadState.asStateFlow()
@@ -89,13 +95,24 @@ open class BaseViewModel(application: Application) : AndroidViewModel(applicatio
                 when (throwable.errorCode) {
                     "ERROR_INVALID_EMAIL" -> "The email address is invalid."
                     "ERROR_WRONG_PASSWORD" -> "Wrong username or password."
+                    "ERROR_INVALID_CREDENTIAL" -> "Wrong username or password."
+                    "INVALID_LOGIN_CREDENTIALS" -> "Wrong username or password."
                     "ERROR_USER_NOT_FOUND" -> "No user found with this email."
                     "ERROR_USER_DISABLED" -> "User account has been disabled."
                     "ERROR_TOO_MANY_REQUESTS" -> "Too many requests. Please try again later."
                     "ERROR_OPERATION_NOT_ALLOWED" -> "Operation not allowed. Please enable sign-in method."
                     "ERROR_EMAIL_ALREADY_IN_USE" -> "This email is already in use."
                     "ERROR_WEAK_PASSWORD" -> "Password is too weak."
-                    else -> throwable.localizedMessage ?: "Authentication error occurred."
+                    else -> {
+                        val raw = throwable.localizedMessage.orEmpty()
+                        if (raw.contains("The supplied auth", ignoreCase = true) ||
+                            raw.contains("invalid login credentials", ignoreCase = true)
+                        ) {
+                            "Wrong username or password."
+                        } else {
+                            raw.ifBlank { "Authentication error occurred." }
+                        }
+                    }
                 }
             }
 
@@ -107,7 +124,24 @@ open class BaseViewModel(application: Application) : AndroidViewModel(applicatio
                     FirebaseFirestoreException.Code.NOT_FOUND -> "Requested data was not found."
                     FirebaseFirestoreException.Code.CANCELLED -> "Request was cancelled."
                     FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED -> "Quota exceeded. Try again later."
-                    else -> throwable.message ?: "Firestore request failed."
+                    else -> {
+                        val raw = throwable.message.orEmpty()
+                        when {
+                            raw.contains("blocked all requests", ignoreCase = true) ->
+                                "Firestore blocked requests for this app. Check App Check, Firestore rules, and project configuration."
+
+                            raw.contains("missing or insufficient permissions", ignoreCase = true) ->
+                                "Permission denied. Check Firestore security rules for this operation."
+
+                            raw.contains("quota", ignoreCase = true) || raw.contains("exceeded", ignoreCase = true) ->
+                                "Firestore quota/rate limit reached. Try again later."
+
+                            raw.contains("app check", ignoreCase = true) ->
+                                "App Check rejected this request. Verify App Check setup for your debug/development build."
+
+                            else -> raw.ifBlank { "Firestore request failed." }
+                        }
+                    }
                 }
             }
 
@@ -115,6 +149,47 @@ open class BaseViewModel(application: Application) : AndroidViewModel(applicatio
             is IllegalArgumentException -> throwable.message ?: "Invalid request."
             else -> throwable.message ?: "Something went wrong"
         }
+    }
+
+    protected fun getThrottleLockMessage(throttleKey: String): String? {
+        val state = throttleStates[throttleKey] ?: return null
+        val now = System.currentTimeMillis()
+        if (now >= state.lockoutUntilMillis) return null
+        val secondsLeft = ((state.lockoutUntilMillis - now) / 1000L).coerceAtLeast(1L)
+        return "Too many failed attempts. Try again in ${secondsLeft}s."
+    }
+
+    protected fun resolveThrottledFailureMessage(
+        throttleKey: String,
+        isThrottleCandidate: Boolean,
+        baseMessage: String,
+        maxFailedAttempts: Int = 2,
+        lockoutDurationMillis: Long = 60_000L
+    ): String {
+        if (!isThrottleCandidate) return baseMessage
+
+        val state = throttleStates.getOrPut(throttleKey) { ThrottleState() }
+        val now = System.currentTimeMillis()
+
+        if (now < state.lockoutUntilMillis) {
+            val secondsLeft = ((state.lockoutUntilMillis - now) / 1000L).coerceAtLeast(1L)
+            return "Too many failed attempts. Try again in ${secondsLeft}s."
+        }
+
+        state.failedAttempts += 1
+
+        if (state.failedAttempts >= maxFailedAttempts) {
+            state.failedAttempts = 0
+            state.lockoutUntilMillis = now + lockoutDurationMillis
+            return "Too many failed attempts. Try again in ${lockoutDurationMillis / 1000L}s."
+        }
+
+        val attemptsLeft = (maxFailedAttempts - state.failedAttempts).coerceAtLeast(0)
+        return "$baseMessage $attemptsLeft attempt left."
+    }
+
+    protected fun clearThrottle(throttleKey: String) {
+        throttleStates.remove(throttleKey)
     }
 
 }

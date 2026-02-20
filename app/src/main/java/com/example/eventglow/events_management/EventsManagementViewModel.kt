@@ -1,15 +1,27 @@
 package com.example.eventglow.events_management
 
+import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.example.eventglow.BuildConfig
+import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -35,6 +47,14 @@ class EventsManagementViewModel : ViewModel() {
     val fetchEventsState: StateFlow<FetchEventsState> = _fetchEventsState
 
     val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
+    private val cloudinaryApi: CloudinaryApi by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.cloudinary.com/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(CloudinaryApi::class.java)
+    }
 
     init {
         fetchEvents()
@@ -126,19 +146,23 @@ class EventsManagementViewModel : ViewModel() {
                         eventTime = data["eventTime"] as? String ?: "",
                         eventVenue = data["eventVenue"] as? String ?: "",
                         eventStatus = data["eventStatus"] as? String ?: "",
+                        isImportant = (data["important"] as? Boolean) ?: (data["isImportant"] as? Boolean) ?: false,
                         eventCategory = data["eventCategory"] as? String ?: "",
                         //cast ticketTypes data as a list of types maps and create a new list from retrived data
                         ticketTypes = (data["ticketTypes"] as? List<Map<String, Any>>)?.map {
                             TicketType(
                                 name = it["name"] as? String ?: "",
                                 price = (it["price"] as? Number)?.toDouble() ?: 0.0,
-                                availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0
+                                availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0,
+                                isFree = (it["isFree"] as? Boolean) ?: (it["free"] as? Boolean) ?: false
                             )
                         } ?: listOf(),  // if returned data is null give default value of empty list
                         imageUri = data["imageUri"] as? String ?: "",
                         isDraft = data["isDraft"] as? Boolean ?: false,
                         eventOrganizer = data["eventOrganizer"] as? String ?: "",
                         eventDescription = data["eventDescription"] as? String ?: "",
+                        durationLabel = data["durationLabel"] as? String ?: "",
+                        durationMinutes = (data["durationMinutes"] as? Number)?.toInt() ?: 0,
                     )
 
                     Log.d("FirestoreEvent", "Event ID: ${event.id}, Is Draft: ${event.isDraft}")
@@ -418,8 +442,11 @@ class EventsManagementViewModel : ViewModel() {
         endDate: String,
         isMultiDayEvent: Boolean,
         eventTime: String,
+        durationLabel: String,
+        durationMinutes: Int,
         eventVenue: String,
         eventStatus: String,
+        isImportant: Boolean,
         eventCategory: String,
         ticketTypes: List<TicketType>,
         imageUri: Uri?,
@@ -429,29 +456,42 @@ class EventsManagementViewModel : ViewModel() {
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
+        val finalImageUrl = imageUri?.toString().orEmpty()
+        if (finalImageUrl.isBlank() || (!finalImageUrl.startsWith("http://") && !finalImageUrl.startsWith("https://"))) {
+            onFailure(IllegalArgumentException("Please upload the event image to Cloudinary first."))
+            return
+        }
+
         val eventData = hashMapOf(
             "eventName" to eventName.trim(),
             "startDate" to startDate,
             "endDate" to endDate,
             "isMultiDayEvent" to isMultiDayEvent,
             "eventTime" to eventTime,
+            "durationLabel" to durationLabel,
+            "durationMinutes" to durationMinutes,
             "eventVenue" to eventVenue,
             "eventStatus" to eventStatus,
+            "important" to isImportant,
+            "isImportant" to isImportant,
             "eventCategory" to eventCategory,
             "ticketTypes" to ticketTypes.map {
                 mapOf(
                     "name" to it.name,
                     "price" to it.price,
-                    "availableTickets" to it.availableTickets
+                    "availableTickets" to it.availableTickets,
+                    "isFree" to it.isFree,
                 )
             }, //create a list containing a map of ticketType objects
-            "imageUri" to imageUri?.toString(),
+            "imageUri" to finalImageUrl,
             "isDraft" to isDraft,
             "eventOrganizer" to eventOrganizer,
             "eventDescription" to eventDescription
         )
 
-        try {
+        enforceCreateEventRateLimit(
+            onAllowed = {
+                try {
             db.collection("events")
                 .add(eventData)
 
@@ -463,11 +503,14 @@ class EventsManagementViewModel : ViewModel() {
                         endDate = endDate,
                         isMultiDayEvent = isMultiDayEvent,
                         eventTime = eventTime,
+                        durationLabel = durationLabel,
+                        durationMinutes = durationMinutes,
                         eventVenue = eventVenue,
                         eventStatus = eventStatus,
+                        isImportant = isImportant,
                         eventCategory = eventCategory,
                         ticketTypes = ticketTypes,
-                        imageUri = imageUri?.toString() ?: "",
+                        imageUri = finalImageUrl,
                         isDraft = isDraft,
                         eventOrganizer = eventOrganizer,
                         eventDescription = eventDescription,
@@ -485,6 +528,127 @@ class EventsManagementViewModel : ViewModel() {
         } catch (e: Exception) {
             Log.d("LoginViewModel", "Failed to save event: ${e.message}")
         }
+            },
+            onRejected = { exception ->
+                onFailure(exception)
+            }
+        )
+    }
+
+    private fun enforceCreateEventRateLimit(
+        onAllowed: () -> Unit,
+        onRejected: (Exception) -> Unit
+    ) {
+        val userId = auth.currentUser?.uid
+        if (userId.isNullOrBlank()) {
+            onAllowed()
+            return
+        }
+
+        val limiterRef = db.collection("rate_limits").document(userId)
+        val cooldownMs = 15_000L
+
+        db.runTransaction { transaction ->
+            val snapshot = transaction.get(limiterRef)
+            val lastCreateAtMs = snapshot.getLong("lastEventCreateAtMs") ?: 0L
+            val nowMs = System.currentTimeMillis()
+            if (nowMs - lastCreateAtMs < cooldownMs) {
+                val secondsLeft = ((cooldownMs - (nowMs - lastCreateAtMs)) / 1000L).coerceAtLeast(1L)
+                throw IllegalStateException("Please wait ${secondsLeft}s before creating another event.")
+            }
+
+            transaction.set(
+                limiterRef,
+                mapOf(
+                    "lastEventCreateAtMs" to nowMs,
+                    "updatedAtMs" to nowMs
+                ),
+                SetOptions.merge()
+            )
+            null
+        }.addOnSuccessListener {
+            onAllowed()
+        }.addOnFailureListener { throwable ->
+            onRejected((throwable as? Exception) ?: Exception(throwable.message ?: "Rate limit check failed."))
+        }
+    }
+
+    suspend fun uploadEventImageToCloudinary(
+        appContext: Context,
+        imageUri: Uri,
+        eventName: String,
+        eventCategory: String
+    ): String? {
+        return try {
+            val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
+            val uploadPreset = BuildConfig.CLOUDINARY_UPLOAD_PRESET.trim()
+            if (cloudName.isBlank() || uploadPreset.isBlank()) {
+                throw IllegalStateException("Cloudinary credentials are missing in BuildConfig.")
+            }
+
+            val mimeType = appContext.contentResolver.getType(imageUri) ?: "image/jpeg"
+            val extension = when (mimeType) {
+                "image/png" -> "png"
+                "image/webp" -> "webp"
+                else -> "jpg"
+            }
+
+            val input = appContext.contentResolver.openInputStream(imageUri)
+                ?: throw IllegalArgumentException("Could not read selected image.")
+
+            val folderValue = "eventGlow/events/${sanitizeToken(eventCategory).ifBlank { "general" }}"
+            val publicIdValue = buildEventImagePublicId(eventName, eventCategory)
+            val tempFile = File(appContext.cacheDir, "$publicIdValue.$extension")
+            input.use { source ->
+                tempFile.outputStream().use { target ->
+                    source.copyTo(target)
+                }
+            }
+
+            val fileBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
+            val filePart = MultipartBody.Part.createFormData(
+                name = "file",
+                filename = tempFile.name,
+                body = fileBody
+            )
+
+            val uploadPresetBody = uploadPreset.toRequestBody("text/plain".toMediaTypeOrNull())
+            val folderBody = folderValue.toRequestBody("text/plain".toMediaTypeOrNull())
+            val assetFolderBody = folderValue.toRequestBody("text/plain".toMediaTypeOrNull())
+            val publicIdBody = publicIdValue.toRequestBody("text/plain".toMediaTypeOrNull())
+
+            val response = cloudinaryApi.uploadImage(
+                cloudName = cloudName,
+                file = filePart,
+                uploadPreset = uploadPresetBody,
+                folder = folderBody,
+                assetFolder = assetFolderBody,
+                publicId = publicIdBody
+            )
+
+            tempFile.delete()
+            response.secureUrl?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            Log.e("EventsManagementVM", "Cloudinary upload failed: ${e.message}", e)
+            null
+        }
+    }
+
+    private fun buildEventImagePublicId(eventName: String, eventCategory: String): String {
+        // Naming format:
+        // evg_{category}_{eventName}_{yyyyMMdd_HHmmss}_{shortRandom}
+        val categoryToken = sanitizeToken(eventCategory).ifBlank { "general" }
+        val eventToken = sanitizeToken(eventName).ifBlank { "event" }
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val shortRandom = UUID.randomUUID().toString().take(6)
+        return "evg_${categoryToken}_${eventToken}_${timestamp}_${shortRandom}"
+    }
+
+    private fun sanitizeToken(input: String): String {
+        return input.lowercase(Locale.US)
+            .replace(Regex("[^a-z0-9]+"), "_")
+            .trim('_')
+            .take(40)
     }
 
     fun addEvent(newEvent: Event) {

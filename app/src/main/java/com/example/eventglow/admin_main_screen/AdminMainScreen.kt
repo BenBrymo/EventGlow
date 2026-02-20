@@ -13,7 +13,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
@@ -41,11 +43,16 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.eventglow.R
 import com.example.eventglow.common.LoadState
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.dataClass.Event
@@ -61,8 +68,10 @@ fun AdminHomeScreen(
     adminViewModel: AdminViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val userData by sharedPreferencesViewModel.userInfo.collectAsState()
     val userName = userData["USERNAME"] ?: "Admin"
+    val profileImageUrl = userData["PROFILE_PICTURE_URL"]
     val uiState by adminViewModel.adminHomeUiState.collectAsState()
     val loadState by adminViewModel.loadState.collectAsState()
     val isRefreshing by adminViewModel.isRefreshing.collectAsState()
@@ -72,6 +81,19 @@ fun AdminHomeScreen(
     var hasInitializedConnectivityObserver by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                sharedPreferencesViewModel.refreshUserInfo()
+                adminViewModel.refreshAdminHomeData()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     LaunchedEffect(errorMessage) {
         val message = errorMessage ?: return@LaunchedEffect
@@ -107,6 +129,7 @@ fun AdminHomeScreen(
     ) {
         AdminHomeContent(
             userName = userName,
+            profileImageUrl = profileImageUrl,
             upcomingEvents = uiState.upcomingEvents,
             todayEvents = uiState.todayEvents,
             totalEvents = uiState.totalEvents,
@@ -121,7 +144,9 @@ fun AdminHomeScreen(
                 }
             },
             onProfileClick = { navController.navigate(Routes.ADMIN_PROFILE_SCREEN) },
-            onEventClick = { event -> navController.navigate("detailed_event_screen_admin/${event.id}") }
+            onEventClick = { event -> navController.navigate("detailed_event_screen_admin/${event.id}") },
+            onEventsCardClick = { navController.navigate(Routes.EVENTS_MANAGEMENT_SCREEN) },
+            onTicketsCardClick = { navController.navigate(Routes.TICKET_MANAGEMENT_SCREEN) }
         )
     }
 }
@@ -130,6 +155,7 @@ fun AdminHomeScreen(
 @Composable
 fun AdminHomeContent(
     userName: String = "BenBrymo",
+    profileImageUrl: String? = null,
     upcomingEvents: List<Event> = emptyList(),
     todayEvents: List<Event> = emptyList(),
     totalEvents: Int = 0,
@@ -140,7 +166,9 @@ fun AdminHomeContent(
     onRefresh: () -> Unit = {},
     onMenuClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
-    onEventClick: (Event) -> Unit = {}
+    onEventClick: (Event) -> Unit = {},
+    onEventsCardClick: () -> Unit = {},
+    onTicketsCardClick: () -> Unit = {}
 ) {
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
@@ -187,15 +215,23 @@ fun AdminHomeContent(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
                     ) {
 
-                        HomeHeader(userName, onMenuClick, onProfileClick)
+                        HomeHeader(
+                            userName = userName,
+                            profileImageUrl = profileImageUrl,
+                            onMenuClick = onMenuClick,
+                            onProfileClick = onProfileClick
+                        )
 
                         Spacer(Modifier.height(12.dp))
 
                         DashboardCardsRow(
                             totalEvents = totalEvents,
-                            totalTickets = totalTickets
+                            totalTickets = totalTickets,
+                            onEventsCardClick = onEventsCardClick,
+                            onTicketsCardClick = onTicketsCardClick
                         )
 
                         Spacer(Modifier.height(24.dp))
@@ -230,9 +266,14 @@ fun AdminHomeContent(
 @Composable
 fun HomeHeader(
     userName: String,
+    profileImageUrl: String?,
     onMenuClick: () -> Unit,
     onProfileClick: () -> Unit
 ) {
+    val fallbackPainter = painterResource(id = R.drawable.applogo)
+    val safeProfileModel = profileImageUrl
+        ?.takeUnless { it.isBlank() || it.equals("null", ignoreCase = true) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -253,7 +294,16 @@ fun HomeHeader(
         )
 
         IconButton(onClick = onProfileClick) {
-            Icon(Icons.Default.AccountCircle, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            AsyncImage(
+                model = safeProfileModel ?: R.drawable.applogo,
+                contentDescription = "Profile",
+                fallback = fallbackPainter,
+                error = fallbackPainter,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(50)),
+            )
         }
     }
 }
@@ -262,7 +312,9 @@ fun HomeHeader(
 @Composable
 fun DashboardCardsRow(
     totalEvents: Int,
-    totalTickets: Int
+    totalTickets: Int,
+    onEventsCardClick: () -> Unit,
+    onTicketsCardClick: () -> Unit
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -271,7 +323,8 @@ fun DashboardCardsRow(
         items(2) {
             DashboardCard(
                 title = if (it == 0) "Events" else "Tickets",
-                count = if (it == 0) totalEvents.toString() else totalTickets.toString()
+                count = if (it == 0) totalEvents.toString() else totalTickets.toString(),
+                onClick = if (it == 0) onEventsCardClick else onTicketsCardClick
             )
         }
     }
@@ -281,7 +334,8 @@ fun DashboardCardsRow(
 @Composable
 fun DashboardCard(
     title: String,
-    count: String
+    count: String,
+    onClick: () -> Unit
 ) {
     val dividerColor = MaterialTheme.colorScheme.onSurface
 
@@ -296,6 +350,7 @@ fun DashboardCard(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 shape = RoundedCornerShape(18.dp)
             )
+            .clickable(onClick = onClick)
     ) {
 
         Column {
@@ -427,34 +482,6 @@ fun EventCard(
             val freeLabel = event.ticketTypes.any { it.price <= 0.0 }
             Text(if (freeLabel) "Free" else "Paid", color = MaterialTheme.colorScheme.onPrimary)
         }
-    }
-}
-
-
-@Composable
-private fun NavigationItem(
-    text: String,
-    onClick: () -> Unit,
-    imageVector: ImageVector
-) {
-
-    //container for NavigationItem
-    Row(
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(16.dp)
-    ) {
-
-        //content of navigation item
-        Icon(
-            imageVector = imageVector,
-            contentDescription = null,
-            Modifier.padding(end = 15.dp)
-        )
-        Text(
-            text,
-            Modifier.padding(top = 2.dp)
-        )
     }
 }
 
@@ -626,6 +653,7 @@ private data class DrawerNavItem(
 fun HomeHeaderPreview() {
     HomeHeader(
         userName = "Admin User",
+        profileImageUrl = null,
         onMenuClick = {},
         onProfileClick = {}
     )
@@ -636,7 +664,8 @@ fun HomeHeaderPreview() {
 fun DashboardCardPreview() {
     DashboardCard(
         title = "Events",
-        count = "12"
+        count = "12",
+        onClick = {}
     )
 }
 
