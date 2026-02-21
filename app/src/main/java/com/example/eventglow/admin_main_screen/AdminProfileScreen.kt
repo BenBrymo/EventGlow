@@ -1,9 +1,7 @@
 package com.example.eventglow.admin_main_screen
 
-import android.content.Context
 import android.content.res.Configuration
 import android.net.Uri
-import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -37,29 +35,11 @@ import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.EventGlowTheme
 import kotlinx.coroutines.launch
-import java.io.File
 
 
 private fun String?.toImageUriOrNull(): Uri? {
     if (this.isNullOrBlank() || this.equals("null", ignoreCase = true)) return null
     return runCatching { Uri.parse(this) }.getOrNull()
-}
-
-private fun copyImageToInternalStorage(context: Context, sourceUri: Uri, filePrefix: String): String? {
-    return try {
-        val inputStream = context.contentResolver.openInputStream(sourceUri) ?: return null
-        val outputDir = File(context.filesDir, "profile_images").apply { mkdirs() }
-        val outputFile = File(outputDir, "${filePrefix}_${System.currentTimeMillis()}.jpg")
-        inputStream.use { input ->
-            outputFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-        Uri.fromFile(outputFile).toString()
-    } catch (e: Exception) {
-        Log.d("AdminProfileScreen", "Failed to copy image locally: ${e.message}")
-        null
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,7 +52,6 @@ fun AdminProfileScreen(
 ) {
     // Shared preferences data
     val userData by sharedPreferencesViewModel.userInfo.collectAsState()
-    val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
 
     var hasFetchedMissingFields by remember { mutableStateOf(false) }
@@ -131,8 +110,11 @@ fun AdminProfileScreen(
     ) { uri ->
         uri?.let { imageUrl ->
             scope.launch {
-                val localUri = copyImageToInternalStorage(context, imageUrl, "profile")
-                val uriToStore = localUri ?: imageUrl.toString()
+                val cloudinaryUrl = viewModel.uploadImageToCloudinary(
+                    imageUri = imageUrl,
+                    folder = "eventGlow/profile"
+                ) ?: return@launch
+                val uriToStore = cloudinaryUrl
 
                 profilePictureUrl = uriToStore.toUri()
                 viewModel.updateProfileImageUrlInSharedPreferences(uriToStore)
@@ -149,8 +131,11 @@ fun AdminProfileScreen(
     ) { uri ->
         uri?.let { imageUrl ->
             scope.launch {
-                val localUri = copyImageToInternalStorage(context, imageUrl, "header")
-                val uriToStore = localUri ?: imageUrl.toString()
+                val cloudinaryUrl = viewModel.uploadImageToCloudinary(
+                    imageUri = imageUrl,
+                    folder = "eventGlow/header"
+                ) ?: return@launch
+                val uriToStore = cloudinaryUrl
 
                 headerPictureUrl = uriToStore.toUri()
                 viewModel.updateHeaderInSharedPreferences(uriToStore)

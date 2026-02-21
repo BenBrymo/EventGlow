@@ -20,6 +20,7 @@ data class Event(
     val eventOrganizer: String = "",
     val eventDescription: String = "",
     val durationLabel: String = "",
-    val durationMinutes: Int = 0
+    val durationMinutes: Int = 0,
+    val createdAtMs: Long = 0L
 )
 

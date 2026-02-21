@@ -127,8 +127,8 @@ open class BaseViewModel(application: Application) : AndroidViewModel(applicatio
                     else -> {
                         val raw = throwable.message.orEmpty()
                         when {
-                            raw.contains("blocked all requests", ignoreCase = true) ->
-                                "Firestore blocked requests for this app. Check App Check, Firestore rules, and project configuration."
+                            raw.contains("We have blocked", ignoreCase = true) ->
+                                "Please try again in later"
 
                             raw.contains("missing or insufficient permissions", ignoreCase = true) ->
                                 "Permission denied. Check Firestore security rules for this operation."

@@ -371,7 +371,7 @@ fun AuthOutlinedField(
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
-            .height(56.dp)
+            .height(65.dp)
             .onFocusChanged { onFocusChanged?.invoke(it.isFocused) },
         label = { Text(text = label) },
         leadingIcon = {

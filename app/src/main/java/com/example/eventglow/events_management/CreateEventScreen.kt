@@ -18,6 +18,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -51,7 +52,9 @@ import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.roundToInt
 
+
 private const val CLOUDINARY_DEBUG_TAG = "CreateEventCloudinary"
+
 
 private fun formatDurationLabel(minutes: Int): String {
     val hours = minutes / 60
@@ -62,6 +65,7 @@ private fun formatDurationLabel(minutes: Int): String {
         else -> "${minutes} min"
     }
 }
+
 
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -95,6 +99,8 @@ fun CreateEventScreen(
     var validationErrors = remember { mutableListOf<String>() }
 
     var eventNameAndDateError by remember { mutableStateOf<String?>(null) }
+    val eventCategories by viewModel.eventCategories.collectAsState()
+    val categoriesList = remember(eventCategories) { eventCategories.map { it.name } }
 
 
     fun validateEventData() {
@@ -143,8 +149,7 @@ fun CreateEventScreen(
                 val uploadedUrl = viewModel.uploadEventImageToCloudinary(
                     appContext = context,
                     imageUri = selectedUri,
-                    eventName = eventName,
-                    eventCategory = eventCategory
+                    eventName = eventName
                 )
                 isUploadingImage = false
 
@@ -166,9 +171,13 @@ fun CreateEventScreen(
         navController.popBackStack()
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.fetchEventCategories()
+    }
+
     // Real event images organized by categories
     val realEventImages = rememberCloudinarySampleImages(
-        categories = listOf("Music", "Sport", "Tech"),
+        categories = categoriesList,
         samplesPerCategory = 3
     )
 
@@ -254,6 +263,23 @@ fun CreateEventScreen(
                             onEventVenueChange = { newEventVenue -> eventVenue = newEventVenue },
                             onImportantChange = { isImportant = it },
                             onEventCategoryChange = { newEventCategory -> eventCategory = newEventCategory },
+                            eventCategoryOptions = categoriesList,
+                            onAddEventCategory = { newCategory ->
+                                viewModel.addEventCategory(
+                                    categoryName = newCategory,
+                                    onSuccess = { addedCategory ->
+                                        eventCategory = addedCategory
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Category added: $addedCategory")
+                                        }
+                                    },
+                                    onFailure = { message ->
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(message)
+                                        }
+                                    }
+                                )
+                            },
                             onEventOrganizerChange = { newEventOrganizer -> eventOrganizer = newEventOrganizer },
                             onEventDescriptionChange = { newEventDescription ->
                                 eventDescription = newEventDescription
@@ -468,122 +494,204 @@ fun FinishSection(
     onPublishClick: () -> Unit,
     onSaveDraftClick: () -> Unit
 ) {
+    val eventDateLabel = if (isMultiDayEvent) "$startDate - $endDate" else startDate
 
-    //For all content
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
+            .animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-
-        //Title
         item {
-            Text(
-                "Review Event Details",
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Review Event Details",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+            }
         }
 
-        //Events details Summary
         item {
-
-            //Card for details
-            Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
-
-                //column for content
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Event Name: $eventName", style = MaterialTheme.typography.bodyMedium)
-                    Text("Event Description: $eventDescription", style = MaterialTheme.typography.bodyMedium)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
-                        "Event Date: ${if (isMultiDayEvent) "$startDate - $endDate" else startDate}",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = "Event Summary",
+                        style = MaterialTheme.typography.titleLarge
                     )
-                    Text("Event Time: $eventTime", style = MaterialTheme.typography.bodyMedium)
-                    Text("Duration: $durationLabel", style = MaterialTheme.typography.bodyMedium)
-                    Text("Event Venue: $eventVenue", style = MaterialTheme.typography.bodyMedium)
-                    Text("Event Status: $eventStatus", style = MaterialTheme.typography.bodyMedium)
-                    Text(
-                        "Featured Event: ${if (isImportant) "Yes" else "No"}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Text("Event Category: $eventCategory", style = MaterialTheme.typography.bodyMedium)
-                    Text("Event Organizer: $eventOrganizer", style = MaterialTheme.typography.bodyMedium)
+                    ReviewDetailRow("Event Name", eventName)
+                    ReviewDetailRow("Description", eventDescription)
+                    ReviewDetailRow("Date", eventDateLabel)
+                    ReviewDetailRow("Time", eventTime)
+                    ReviewDetailRow("Duration", durationLabel)
+                    ReviewDetailRow("Venue", eventVenue)
+                    ReviewDetailRow("Status", eventStatus)
+                    ReviewDetailRow("Featured Event", if (isImportant) "Yes" else "No")
+                    ReviewDetailRow("Category", eventCategory)
+                    ReviewDetailRow("Organizer", eventOrganizer)
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
         }
 
-        // Display ticket Types summary
         item {
-
-            //Card for details
-            Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
-
-                //Column for content
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Ticket Types:", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
-
-                    //Display all ticket types
-                    ticketTypes.forEach { Type ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            )
+            {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Ticket Types",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                    if (ticketTypes.isEmpty()) {
                         Text(
-                            "Type Name: ${Type.name}, Price: ${Type.price}, Available Tickets: ${Type.availableTickets}",
-                            style = MaterialTheme.typography.bodyMedium
+                            text = "No ticket types added",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(ticketTypes.size) { index ->
+                                TicketTypeSummaryCard(ticketType = ticketTypes[index])
+                            }
+                        }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Display event image summary
         item {
-
-            //Card for Image Data
-            Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
-
-                //For content
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Event Image:", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineSmall)
-
-                    //Diplay Image
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Event Image",
+                        style = MaterialTheme.typography.titleLarge
+                    )
                     imageUri?.let {
                         Image(
                             painter = rememberAsyncImagePainter(model = it),
                             contentDescription = "Event Image",
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .size(100.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(12.dp))
                         )
-                    } ?: Text("No image selected", style = MaterialTheme.typography.bodyMedium) //If no image is chosen
+                    } ?: run {
+                        Text(
+                            text = "No image selected",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // Publish and Save Draft buttons
         item {
-
-            //row for all content
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(onClick = onSaveDraftClick) {
+                Button(
+                    onClick = onSaveDraftClick,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Icon(Icons.Filled.Save, contentDescription = "Save as Draft")
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save as Draft")
+                    Text("Save")
                 }
-                Button(onClick = onPublishClick) {
+                Button(
+                    onClick = onPublishClick,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Icon(Icons.Filled.Publish, contentDescription = "Publish")
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Publish")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReviewDetailRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value.ifBlank { "-" },
+            style = MaterialTheme.typography.bodyLarge
+        )
+    }
+}
+
+@Composable
+private fun TicketTypeSummaryCard(ticketType: TicketType) {
+    val isFreeTicket = ticketType.isFree || ticketType.price <= 0.0
+    val priceLabel = if (isFreeTicket) "Free" else "GHS ${"%.2f".format(ticketType.price)}"
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        tonalElevation = 3.dp,
+        modifier = Modifier.width(180.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = ticketType.name.ifBlank { "Unnamed Ticket" },
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = "Available: ${ticketType.availableTickets}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = if (isFreeTicket) {
+                    MaterialTheme.colorScheme.tertiaryContainer
+                } else {
+                    MaterialTheme.colorScheme.secondaryContainer
+                }
+            ) {
+                Text(
+                    text = priceLabel,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (isFreeTicket) {
+                        MaterialTheme.colorScheme.onTertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    },
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
             }
         }
     }
@@ -611,6 +719,8 @@ fun EventDetailsSection(
     onEventVenueChange: (String) -> Unit,
     onImportantChange: (Boolean) -> Unit,
     onEventCategoryChange: (String) -> Unit,
+    eventCategoryOptions: List<String>,
+    onAddEventCategory: (String) -> Unit,
     onEventOrganizerChange: (String) -> Unit,
     onEventDescriptionChange: (String) -> Unit,
     eventCategory: String,
@@ -1058,10 +1168,8 @@ fun EventDetailsSection(
         }
         //event category
         item {
-            // List of event category options
-            val eventCategoryOptions = listOf("Music", "Sports", "Tech", "Arts", "Health", "Other")
-
             var expanded by remember { mutableStateOf(false) }
+            var newCategoryName by remember { mutableStateOf("") }
 
             Column(
                 modifier = Modifier
@@ -1101,24 +1209,60 @@ fun EventDetailsSection(
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                         ) {
-                            eventCategoryOptions.forEach { category ->
-                                val isSelected = eventCategory == category
+                            if (eventCategoryOptions.isEmpty()) {
                                 Text(
-                                    text = category,
-                                    color = if (isSelected) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            onEventCategoryChange(category)
-                                            expanded = false
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    text = "No categories available yet. Add one below.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                                 )
+                            } else {
+                                eventCategoryOptions.forEach { category ->
+                                    val isSelected = eventCategory == category
+                                    Text(
+                                        text = category,
+                                        color = if (isSelected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                onEventCategoryChange(category)
+                                                expanded = false
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                OutlinedTextField(
+                                    value = newCategoryName,
+                                    onValueChange = { newCategoryName = it },
+                                    label = { Text("Add new category") },
+                                    modifier = Modifier.weight(1f),
+                                    singleLine = true
+                                )
+                                Button(
+                                    onClick = {
+                                        val category = newCategoryName.trim()
+                                        if (category.isNotBlank()) {
+                                            onAddEventCategory(category)
+                                            newCategoryName = ""
+                                        }
+                                    },
+                                    enabled = newCategoryName.trim().isNotBlank()
+                                ) {
+                                    Text("Add")
+                                }
                             }
                         }
                     }
@@ -1401,13 +1545,16 @@ fun EventImageSection(
     realEventImages: Map<String, List<String>>, // Map of category to image
     onImageSelected: (Uri) -> Unit // Callback to handle image selection
 ) {
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize()) {
         //for all content
         LazyColumn(
             modifier = Modifier
                 .padding(16.dp)
-                .alpha(if (isUploadingImage) 0.45f else 1f)
+                .alpha(if (isUploadingImage) 0.45f else 1f),
+            state = listState
         ) {
 
         //Adding Image section
@@ -1498,7 +1645,12 @@ fun EventImageSection(
 
                         //display real event images
                         items(images.size) { index ->
-                            RealEventImageCard(images[index], onImageSelected)
+                            RealEventImageCard(images[index]) { uri ->
+                                onImageSelected(uri)
+                                scope.launch {
+                                    listState.animateScrollToItem(0)
+                                }
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))

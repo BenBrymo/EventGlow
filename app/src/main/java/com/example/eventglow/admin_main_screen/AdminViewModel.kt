@@ -174,7 +174,6 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
         sharedPreferences.updateHeaderImageUrl(newHeaderImageUrl)
     }
 
-
     suspend fun uploadImageToCloudinary(imageUri: Uri, folder: String): String? {
         if (!isNetworkAvailable()) {
             setFailure("No internet connection. Check your network and try again.")
@@ -245,6 +244,7 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
             null
         }
     }
+
 
     // Function to update profilePictureUrl in Firestore
     fun updateProfilePictureUrlInFirestore(newProfileImageUrl: String) {

@@ -59,6 +59,7 @@ class MainActivity : ComponentActivity() {
     private val userPreferences by lazy { UserPreferences(application) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.Theme_EventGlow)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         FirebaseApp.initializeApp(this)

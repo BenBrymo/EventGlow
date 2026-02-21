@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.Event
+import com.example.eventglow.dataClass.EventCategory
 import com.example.eventglow.dataClass.TicketType
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
@@ -46,6 +47,9 @@ class EventsManagementViewModel : ViewModel() {
     private val _fetchEventsState = MutableStateFlow<FetchEventsState>(FetchEventsState.Loading)
     val fetchEventsState: StateFlow<FetchEventsState> = _fetchEventsState
 
+    private val _eventCategories = MutableStateFlow<List<EventCategory>>(emptyList())
+    val eventCategories: StateFlow<List<EventCategory>> = _eventCategories.asStateFlow()
+
     val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private val cloudinaryApi: CloudinaryApi by lazy {
@@ -58,6 +62,70 @@ class EventsManagementViewModel : ViewModel() {
 
     init {
         fetchEvents()
+        fetchEventCategories()
+    }
+
+    fun fetchEventCategories() {
+        db.collection("eventCategories")
+            .get()
+            .addOnSuccessListener { result ->
+                val categories = result.documents
+                    .mapNotNull { document ->
+                        val rawName = document.getString("name")?.trim().orEmpty()
+                        if (rawName.isBlank()) {
+                            null
+                        } else {
+                            EventCategory(
+                                id = document.id,
+                                name = rawName
+                            )
+                        }
+                    }
+                    .distinctBy { it.name.lowercase(Locale.getDefault()) }
+                    .sortedBy { it.name.lowercase(Locale.getDefault()) }
+                _eventCategories.value = categories
+            }
+            .addOnFailureListener { exception ->
+                Log.d("EventCategories", "Failed to fetch categories: ${exception.message}")
+            }
+    }
+
+    fun addEventCategory(
+        categoryName: String,
+        onSuccess: (String) -> Unit,
+        onFailure: (String) -> Unit
+    ) {
+        val trimmed = categoryName.trim()
+        if (trimmed.isBlank()) {
+            onFailure("Category name cannot be empty.")
+            return
+        }
+
+        val exists = _eventCategories.value.any { it.name.equals(trimmed, ignoreCase = true) }
+        if (exists) {
+            onFailure("Category already exists.")
+            return
+        }
+
+        val payload = mapOf(
+            "name" to trimmed,
+            "createdAtMs" to System.currentTimeMillis()
+        )
+
+        db.collection("eventCategories")
+            .add(payload)
+            .addOnSuccessListener { documentReference ->
+                _eventCategories.value =
+                    (_eventCategories.value + EventCategory(
+                        id = documentReference.id,
+                        name = trimmed
+                    )).distinctBy { it.name.lowercase(Locale.getDefault()) }
+                        .sortedBy { it.name.lowercase(Locale.getDefault()) }
+                onSuccess(trimmed)
+            }
+            .addOnFailureListener { exception ->
+                onFailure(exception.message ?: "Failed to add category.")
+            }
     }
 
     private fun filterEvents(query: String) {
@@ -163,6 +231,7 @@ class EventsManagementViewModel : ViewModel() {
                         eventDescription = data["eventDescription"] as? String ?: "",
                         durationLabel = data["durationLabel"] as? String ?: "",
                         durationMinutes = (data["durationMinutes"] as? Number)?.toInt() ?: 0,
+                        createdAtMs = (data["createdAtMs"] as? Number)?.toLong() ?: 0L,
                     )
 
                     Log.d("FirestoreEvent", "Event ID: ${event.id}, Is Draft: ${event.isDraft}")
@@ -198,10 +267,8 @@ class EventsManagementViewModel : ViewModel() {
                     }
                 }
 
-                // Sort non-drafted events by start date
-                nonDraftedList.sortBy { event ->
-                    parseDate(event.startDate)
-                }
+                // Newest events first in Manage Events.
+                nonDraftedList.sortByDescending { event -> event.createdAtMs }
 
                 //expose private variable drafted list to public variable drafted list
                 _draftedEvents.value = draftedList
@@ -462,6 +529,7 @@ class EventsManagementViewModel : ViewModel() {
             return
         }
 
+        val createdAtMs = System.currentTimeMillis()
         val eventData = hashMapOf(
             "eventName" to eventName.trim(),
             "startDate" to startDate,
@@ -486,7 +554,8 @@ class EventsManagementViewModel : ViewModel() {
             "imageUri" to finalImageUrl,
             "isDraft" to isDraft,
             "eventOrganizer" to eventOrganizer,
-            "eventDescription" to eventDescription
+            "eventDescription" to eventDescription,
+            "createdAtMs" to createdAtMs
         )
 
         enforceCreateEventRateLimit(
@@ -514,6 +583,7 @@ class EventsManagementViewModel : ViewModel() {
                         isDraft = isDraft,
                         eventOrganizer = eventOrganizer,
                         eventDescription = eventDescription,
+                        createdAtMs = createdAtMs,
 
                         )
                     println("Saving event. ID: ${documentReference.id}, isDraft: ${isDraft}")
@@ -576,8 +646,7 @@ class EventsManagementViewModel : ViewModel() {
     suspend fun uploadEventImageToCloudinary(
         appContext: Context,
         imageUri: Uri,
-        eventName: String,
-        eventCategory: String
+        eventName: String
     ): String? {
         return try {
             val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
@@ -596,8 +665,8 @@ class EventsManagementViewModel : ViewModel() {
             val input = appContext.contentResolver.openInputStream(imageUri)
                 ?: throw IllegalArgumentException("Could not read selected image.")
 
-            val folderValue = "eventGlow/events/${sanitizeToken(eventCategory).ifBlank { "general" }}"
-            val publicIdValue = buildEventImagePublicId(eventName, eventCategory)
+            val folderValue = "eventGlow/events"
+            val publicIdValue = buildEventImagePublicId(eventName)
             val tempFile = File(appContext.cacheDir, "$publicIdValue.$extension")
             input.use { source ->
                 tempFile.outputStream().use { target ->
@@ -634,14 +703,13 @@ class EventsManagementViewModel : ViewModel() {
         }
     }
 
-    private fun buildEventImagePublicId(eventName: String, eventCategory: String): String {
+    private fun buildEventImagePublicId(eventName: String): String {
         // Naming format:
-        // evg_{category}_{eventName}_{yyyyMMdd_HHmmss}_{shortRandom}
-        val categoryToken = sanitizeToken(eventCategory).ifBlank { "general" }
+        // evg_{eventName}_{yyyyMMdd_HHmmss}_{shortRandom}
         val eventToken = sanitizeToken(eventName).ifBlank { "event" }
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val shortRandom = UUID.randomUUID().toString().take(6)
-        return "evg_${categoryToken}_${eventToken}_${timestamp}_${shortRandom}"
+        return "evg_${eventToken}_${timestamp}_${shortRandom}"
     }
 
     private fun sanitizeToken(input: String): String {
@@ -653,10 +721,10 @@ class EventsManagementViewModel : ViewModel() {
 
     fun addEvent(newEvent: Event) {
         if (newEvent.isDraft) {
-            _draftedEvents.value += newEvent
+            _draftedEvents.value = listOf(newEvent) + _draftedEvents.value
             println("Added to drafted events: ${newEvent.eventName}")
         } else {
-            _events.value += newEvent
+            _events.value = listOf(newEvent) + _events.value
             println("Added to non-drafted events: ${newEvent.eventName}")
         }
         println("Added event. IsDraft: ${newEvent.isDraft}, Total Drafted: ${_draftedEvents.value.size}, Total Non-Drafted: ${_events.value.size}")
