@@ -1,16 +1,12 @@
 package com.example.eventglow.events_management
 
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
@@ -20,51 +16,89 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
-import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
+import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.AppBlack
 import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.BorderDefault
 import com.example.eventglow.ui.theme.BrandPrimary
 import com.example.eventglow.ui.theme.CardGray
 import com.example.eventglow.ui.theme.Success
 import com.example.eventglow.ui.theme.SurfaceLevel2
 import com.example.eventglow.ui.theme.TextPrimary
 import com.example.eventglow.ui.theme.TextSecondary
-
+import kotlinx.coroutines.launch
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventDetailsAdminScreen(
     eventId: String,
-    title: String = "bjj",
-    dateLabel: String = "Wednesday",
-    dateValue: String = "18 Feb",
-    time: String = "5:00 PM",
-    duration: String = "2 hr 30 min",
-    venue: String = "dtuj",
-    description: String = "fhkkllll",
-    onBack: () -> Unit = {},
-    onEdit: () -> Unit = {},
-    onCopy: () -> Unit = {},
-    onDeleteConfirmed: () -> Unit = {},
-    onManageTickets: () -> Unit = {},
-    navController: NavController
+    navController: NavController,
+    viewModel: EventsManagementViewModel = viewModel(),
 ) {
+    val fetchState by viewModel.fetchEventsState.collectAsState()
+    val event = viewModel.getEventById(eventId)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     var menuExpanded by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
+    LaunchedEffect(eventId) {
+        if (eventId.isBlank() || event != null) return@LaunchedEffect
+        viewModel.fetchEvents()
+    }
+
+    if (eventId.isBlank()) {
+        EventDetailsStateScreen(
+            title = "Invalid Event",
+            message = "This event link is missing a valid event id.",
+            onPrimaryAction = { navController.popBackStack() },
+            primaryActionLabel = "Go Back"
+        )
+        return
+    }
+
+    if (event == null) {
+        when (val state = fetchState) {
+            is FetchEventsState.Loading -> EventDetailsStateScreen(
+                title = "Loading Event",
+                message = "Please wait while we load event details.",
+                showLoading = true
+            )
+
+            is FetchEventsState.Failure -> EventDetailsStateScreen(
+                title = "Could Not Load Event",
+                message = state.errorMessage,
+                onPrimaryAction = { viewModel.fetchEvents() },
+                primaryActionLabel = "Retry",
+                onSecondaryAction = { navController.popBackStack() },
+                secondaryActionLabel = "Go Back"
+            )
+
+            is FetchEventsState.Success -> EventDetailsStateScreen(
+                title = "Event Not Found",
+                message = "This event may have been deleted or is no longer available.",
+                onPrimaryAction = { navController.popBackStack() },
+                primaryActionLabel = "Go Back"
+            )
+        }
+        return
+    }
+
+    val isFreeEvent = event.ticketTypes.isNotEmpty() && event.ticketTypes.all { it.isFree || it.price <= 0.0 }
+    val dateValue = if (event.isMultiDayEvent) "${event.startDate} - ${event.endDate}" else event.startDate
+
     Scaffold(
         containerColor = Background,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -74,7 +108,7 @@ fun EventDetailsAdminScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = null,
@@ -100,14 +134,14 @@ fun EventDetailsAdminScreen(
                             text = { Text("Edit") },
                             onClick = {
                                 menuExpanded = false
-                                onEdit()
+                                navController.navigate("edit_event_screen/${event.id}")
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Copy") },
                             onClick = {
                                 menuExpanded = false
-                                onCopy()
+                                navController.navigate("copy_event_screen/${event.id}")
                             }
                         )
                         DropdownMenuItem(
@@ -129,10 +163,12 @@ fun EventDetailsAdminScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .imePadding()
                     .padding(16.dp)
             ) {
                 Button(
-                    onClick = onManageTickets,
+                    onClick = { navController.navigate(Routes.TICKET_MANAGEMENT_SCREEN) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
@@ -144,91 +180,115 @@ fun EventDetailsAdminScreen(
                     Text(
                         "Manage Tickets",
                         style = MaterialTheme.typography.labelLarge,
-                        color = TextPrimary
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
             }
         }
     ) { padding ->
-
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            item {
+                Spacer(Modifier.height(12.dp))
+            }
 
-            Spacer(Modifier.height(12.dp))
-
-            // image
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(230.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(SurfaceLevel2)
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            FreeEventChip()
-
-            Spacer(Modifier.height(12.dp))
-
-            Text(
-                title,
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
-            )
-
-            Spacer(Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    dateLabel,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-                Text(
-                    dateValue,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
+            item {
+                Image(
+                    painter = rememberAsyncImagePainter(event.imageUri),
+                    contentDescription = "Event banner",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(240.dp)
+                        .clip(RoundedCornerShape(18.dp)),
+                    contentScale = ContentScale.Crop
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatusChip(event.eventStatus.uppercase())
+                    if (isFreeEvent) {
+                        StatusChip("FREE EVENT", color = Success)
+                    }
+                }
+            }
 
-            InfoBlock("Time", time)
-            InfoBlock("Duration", duration)
-            InfoBlock("Venue", venue)
-            InfoBlock("Description", description)
+            item {
+                Text(
+                    text = event.eventName,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = TextPrimary
+                )
+            }
 
-            Spacer(Modifier.height(20.dp))
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    DetailValueBlock("Date", dateValue)
+                    DetailValueBlock("Time", event.eventTime)
+                }
+            }
 
-            Text(
-                "Tickets",
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary
-            )
+            item {
+                DetailValueBlock("Duration", event.durationLabel.ifBlank { "-" })
+            }
+            item { DetailValueBlock("Venue", event.eventVenue) }
+            item { DetailValueBlock("Category", event.eventCategory) }
+            item { DetailValueBlock("Organizer", event.eventOrganizer) }
+            item { DetailValueBlock("Description", event.eventDescription) }
 
-            Spacer(Modifier.height(8.dp))
+            item {
+                Text(
+                    "Tickets",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary
+                )
+            }
 
-            TicketChip()
+            item {
+                if (event.ticketTypes.isEmpty()) {
+                    Text(
+                        text = "No ticket types available.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
+                    )
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(event.ticketTypes) { ticket ->
+                            EventTicketSummaryCard(ticketType = ticket)
+                        }
+                    }
+                }
+            }
 
-            Spacer(Modifier.height(90.dp))
+            item {
+                Spacer(Modifier.height(90.dp))
+            }
         }
     }
 
     if (showDeleteDialog) {
         DeleteEventDialog(
-            eventName = title,
+            eventName = event.eventName,
             onCancel = { showDeleteDialog = false },
             onDelete = {
                 showDeleteDialog = false
-                onDeleteConfirmed()
+                viewModel.deleteEvent(
+                    event = event,
+                    onFailure = { errorMessage ->
+                        scope.launch { snackbarHostState.showSnackbar(errorMessage) }
+                    }
+                )
+                navController.previousBackStackEntry?.savedStateHandle?.set("events_updated", true)
+                navController.popBackStack()
             }
         )
     }
@@ -236,26 +296,26 @@ fun EventDetailsAdminScreen(
 
 
 @Composable
-private fun FreeEventChip() {
+private fun StatusChip(text: String, color: androidx.compose.ui.graphics.Color = BrandPrimary) {
     Box(
         modifier = Modifier
             .background(
-                color = Success,
+                color = color,
                 shape = RoundedCornerShape(20.dp)
             )
             .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
         Text(
-            "FREE EVENT",
+            text,
             style = MaterialTheme.typography.labelMedium,
-            color = TextPrimary
+            color = MaterialTheme.colorScheme.onPrimary
         )
     }
 }
 
 
 @Composable
-private fun InfoBlock(
+private fun DetailValueBlock(
     title: String,
     value: String
 ) {
@@ -265,7 +325,7 @@ private fun InfoBlock(
         Text(
             title,
             style = MaterialTheme.typography.labelLarge,
-            color = TextPrimary
+            color = TextSecondary
         )
 
         Spacer(Modifier.height(4.dp))
@@ -273,35 +333,76 @@ private fun InfoBlock(
         Text(
             value,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary
+            color = TextPrimary
         )
     }
 }
 
 
 @Composable
-private fun TicketChip() {
-    Row(
+private fun EventTicketSummaryCard(ticketType: TicketType) {
+    val isFreeTicket = ticketType.isFree || ticketType.price <= 0.0
+    val priceLabel = if (isFreeTicket) "FREE" else "GHS ${"%.2f".format(ticketType.price)}"
+
+    Column(
         modifier = Modifier
-            .background(
-                color = CardGray,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .padding(8.dp)
+            .width(180.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceLevel2)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Box(
+        Text(ticketType.name.ifBlank { "Ticket" }, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+        Text(
+            "Available: ${ticketType.availableTickets}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = TextSecondary
+        )
+        StatusChip(
+            text = priceLabel,
+            color = if (isFreeTicket) Success else BrandPrimary
+        )
+    }
+}
+
+@Composable
+private fun EventDetailsStateScreen(
+    title: String,
+    message: String,
+    showLoading: Boolean = false,
+    onPrimaryAction: (() -> Unit)? = null,
+    primaryActionLabel: String = "",
+    onSecondaryAction: (() -> Unit)? = null,
+    secondaryActionLabel: String = ""
+) {
+    Surface(modifier = Modifier.fillMaxSize(), color = Background) {
+        Column(
             modifier = Modifier
-                .background(
-                    color = Success,
-                    shape = RoundedCornerShape(10.dp)
-                )
-                .padding(horizontal = 10.dp, vertical = 6.dp)
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                "FREE",
-                style = MaterialTheme.typography.labelSmall,
-                color = TextPrimary
-            )
+            if (showLoading) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            Text(text = title, style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = message, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+            if (onPrimaryAction != null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                Button(onClick = onPrimaryAction) { Text(primaryActionLabel) }
+            }
+            if (onSecondaryAction != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onSecondaryAction,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderDefault)
+                ) {
+                    Text(secondaryActionLabel)
+                }
+            }
         }
     }
 }
@@ -350,284 +451,12 @@ private fun DeleteEventDialog(
 }
 
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DetailedEventScreenAdmin(
-    eventId: String,
-    viewModel: EventsManagementViewModel = viewModel(),
-    navController: NavController,
-) {
-
-    val event = viewModel.getEventById(eventId)
-    Log.d("DetailedEventScreen", "Event fetched: $event")
-
-
-    // State to hold the chosen ticket type
-    var selectedTicketType by remember { mutableStateOf<TicketType?>(null) }
-
-    if (event == null) {
-        Log.d("DetailedEventScreen", "Event is null, displaying loading indicator.")
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                CircularProgressIndicator() // Display loading indicator
-            }
-        }
-        return
-    }
-
-
-
-
-
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = "Event Details", style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        navController.popBackStack()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
-                    }
-                },
-                colors = TopAppBarDefaults.mediumTopAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            )
-        }
-    ) { paddingValues ->
-        Surface(modifier = Modifier.padding(paddingValues)) {
-            DetailedEventContent(
-                event = event,
-                chosenTicketType = { ticketType -> selectedTicketType = ticketType }
-            )
-        }
-    }
-}
-
-@Composable
-fun DetailedEventContent(
-    event: Event,
-    chosenTicketType: (ticketType: TicketType) -> Unit
-) {
-
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        item {
-            // Banner Section
-            Image(
-                painter = rememberAsyncImagePainter(event.imageUri),
-                contentDescription = "Event Banner",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .clip(RoundedCornerShape(24.dp)),
-                contentScale = ContentScale.Crop
-            )
-            Log.d("AdminDetailedEventScreen", "Event banner image loaded: ${event.imageUri}")
-        }
-        item {
-            // Event Name
-            Text(
-                text = event.eventName,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Log.d("AdminDetailedEventScreen", "Event name displayed: ${event.eventName}")
-        }
-        item {
-            // Event Date and Time
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (event.isMultiDayEvent) "${event.startDate} - ${event.endDate}" else event.startDate,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 1.sp
-                    ),
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = "Time: ${event.eventTime}",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = FontWeight.Light,
-                        letterSpacing = 0.5.sp
-                    )
-                )
-            }
-            Log.d(
-                "AdminDetailedEventScreen",
-                "Event date and time displayed: ${if (event.isMultiDayEvent) "${event.startDate} - ${event.endDate}" else event.startDate}, Time: ${event.eventTime}"
-            )
-        }
-        item {
-            // Event Venue and Description
-            Column {
-                // Venue
-                Text(
-                    text = "Venue",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = event.eventVenue,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        letterSpacing = 0.5.sp
-                    ),
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-
-                // Description
-                Text(
-                    text = "Description",
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    ),
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                Text(
-                    text = event.eventDescription,
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        letterSpacing = 0.5.sp
-                    )
-                )
-            }
-            Log.d(
-                "AdminDetailedEventScreen",
-                "Event venue and description displayed: ${event.eventVenue}, ${event.eventDescription}"
-            )
-        }
-        item {
-            // Ticket Types
-            Text(
-                text = "Ticket Types",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                ),
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(event.ticketTypes) { ticketType ->
-                    TicketTypeCard(
-                        ticketType = ticketType,
-                        onClick = {
-                            Log.d("AdminDetailedEventScreen", "Ticket type selected: ${ticketType.name}")
-                            chosenTicketType(ticketType)
-
-                        }
-                    )
-                }
-            }
-        }
-        item {
-            // Manage Ticket
-            Button(
-                onClick = {
-
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(text = "Manage Ticket")
-            }
-        }
-    }
-}
-
-@Composable
-fun TicketTypeCard(
-    ticketType: TicketType,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .padding(8.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(4.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            Text(
-                text = ticketType.name,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Price: GHS ${ticketType.price}",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = 0.5.sp
-                )
-            )
-        }
-    }
-}
 
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun EventDetailsAdminScreenPreview() {
     EventDetailsAdminScreen(
         eventId = "ev_1",
-        title = "Tech Expo 2026",
-        dateLabel = "Wednesday",
-        dateValue = "18 Feb",
-        time = "5:00 PM",
-        duration = "2 hr 30 min",
-        venue = "Accra International Center",
-        description = "A tech showcase for startups and creators.",
         navController = rememberNavController()
-    )
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun DetailedEventContentPreview() {
-    DetailedEventContent(
-        event = Event(
-            id = "ev_2",
-            eventName = "Music Festival",
-            startDate = "20/2/2026",
-            endDate = "20/2/2026",
-            isMultiDayEvent = false,
-            eventTime = "7:30 PM",
-            eventVenue = "Kumasi Sports Arena",
-            eventStatus = "Upcoming",
-            eventCategory = "Music",
-            ticketTypes = listOf(
-                TicketType(name = "Regular", price = 50.0, availableTickets = 200),
-                TicketType(name = "VIP", price = 120.0, availableTickets = 50)
-            ),
-            imageUri = "",
-            eventDescription = "Live performances by local and international artists."
-        ),
-        chosenTicketType = {}
     )
 }

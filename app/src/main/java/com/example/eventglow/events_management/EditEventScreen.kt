@@ -35,7 +35,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.eventglow.BuildConfig
 import com.example.eventglow.dataClass.TicketType
+import com.example.eventglow.navigation.Routes
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -51,6 +53,23 @@ fun EditEventScreen(
 
     // Remember coroutine scope for performing asynchronous actions
     val scope = rememberCoroutineScope()
+    val fetchState by viewModel.fetchEventsState.collectAsState()
+
+    LaunchedEffect(eventId) {
+        if (!eventId.isNullOrBlank() && viewModel.getEventById(eventId) == null) {
+            viewModel.fetchEvents()
+        }
+    }
+
+    if (eventId.isNullOrBlank()) {
+        EditEventStateScreen(
+            title = "Invalid Event",
+            message = "This event link is missing a valid event id.",
+            onPrimaryAction = { navController.popBackStack() },
+            primaryActionLabel = "Go Back"
+        )
+        return
+    }
 
     //retrives event from eventlist
     val event = viewModel.getEventById(eventId)
@@ -59,12 +78,35 @@ fun EditEventScreen(
 
     // Handle the UI when the event data is null
     if (event == null) {
-        Surface(modifier = Modifier.fillMaxSize()) {
-            Column(verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator() // Display loading indicator
+        when (val state = fetchState) {
+            is FetchEventsState.Loading -> {
+                EditEventStateScreen(
+                    title = "Loading Event",
+                    message = "Please wait while we load event details.",
+                    showLoading = true
+                )
+            }
+
+            is FetchEventsState.Failure -> {
+                EditEventStateScreen(
+                    title = "Could Not Load Event",
+                    message = state.errorMessage,
+                    onPrimaryAction = { viewModel.fetchEvents() },
+                    primaryActionLabel = "Retry",
+                    onSecondaryAction = { navController.popBackStack() },
+                    secondaryActionLabel = "Go Back"
+                )
+            }
+
+            is FetchEventsState.Success -> {
+                EditEventStateScreen(
+                    title = "Event Not Found",
+                    message = "This event may have been deleted or is no longer available.",
+                    onPrimaryAction = { navController.popBackStack() },
+                    primaryActionLabel = "Go Back"
+                )
             }
         }
-
     } else {
 
         // Variables to hold event details
@@ -73,17 +115,32 @@ fun EditEventScreen(
         var endDate by remember { mutableStateOf(event.endDate) }
         var isMultiDayEvent by remember { mutableStateOf(event.isMultiDayEvent) }
         var eventTime by remember { mutableStateOf(event.eventTime) }
+        var durationLabel by remember { mutableStateOf(event.durationLabel) }
+        var durationMinutes by remember { mutableIntStateOf(event.durationMinutes) }
         var eventVenue by remember { mutableStateOf(event.eventVenue) }
         var eventStatus by remember { mutableStateOf(event.eventStatus) }
+        var isImportant by remember { mutableStateOf(event.isImportant) }
         var eventCategory by remember { mutableStateOf(event.eventCategory) }
         var ticketTypes by remember { mutableStateOf(event.ticketTypes) }
-        var imageUri by remember { mutableStateOf<Uri?>(event.imageUri!!.toUri()) }
+        var imageUri by remember { mutableStateOf(event.imageUri?.takeIf { it.isNotBlank() }?.toUri()) }
         var eventOrganizer by remember { mutableStateOf(event.eventOrganizer) }
         var eventDescription by remember { mutableStateOf(event.eventDescription) }
+        var isUploadingImage by remember { mutableStateOf(false) }
+        val context = LocalContext.current
+        val eventCategories by viewModel.eventCategories.collectAsState()
+        val categoriesList = remember(eventCategories) { eventCategories.map { it.name } }
 
         var validationErrors = remember { mutableListOf<String>() }
 
         var eventNameAndDateError by remember { mutableStateOf<String?>(null) }
+
+        fun markEventsUpdatedAndReturn() {
+            navController.previousBackStackEntry?.savedStateHandle?.set("events_updated", true)
+            navController.getBackStackEntryOrNull(Routes.ADMIN_MAIN_SCREEN)
+                ?.savedStateHandle
+                ?.set("events_updated", true)
+            navController.popBackStack()
+        }
 
 
         fun validateEventData() {
@@ -99,13 +156,14 @@ fun EditEventScreen(
                 if (startDate.isEmpty()) validationErrors.add("Event date is required")
             }
             if (eventTime.isEmpty()) validationErrors.add("Event time is required")
+            if (durationMinutes <= 0) validationErrors.add("Event duration is required")
             if (eventVenue.isEmpty()) validationErrors.add("Event venue is required")
             if (eventStatus.isEmpty()) validationErrors.add("Event status is required")
             if (eventCategory.isEmpty()) validationErrors.add("Event category is required")
             if (eventOrganizer.isEmpty()) validationErrors.add("Event Organizer is required")
             if (eventDescription.isEmpty()) validationErrors.add("Event Description is required")
             if (ticketTypes.isEmpty()) validationErrors.add("At least one ticket Type is required")
-            if (ticketTypes.any { it.price < 1 }) validationErrors.add("Ticket price must be at least 1")
+            if (ticketTypes.any { !it.isFree && it.price < 1 }) validationErrors.add("Paid ticket price must be at least 1 GHS")
             if (imageUri == null) validationErrors.add("Event image is required")
             if (eventNameAndDateError != null) validationErrors.add("$eventNameAndDateError")
         }
@@ -117,30 +175,36 @@ fun EditEventScreen(
         // Snackbar state
         val snackbarHostState = remember { SnackbarHostState() }
 
+        LaunchedEffect(Unit) {
+            viewModel.fetchEventCategories()
+        }
+
         // Event Image picker launcher
         val imagePickerLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.GetContent()
         ) { uri: Uri? ->
-            uri?.let { imageUri = it }
+            uri?.let { selectedUri ->
+                scope.launch {
+                    isUploadingImage = true
+                    val uploadedUrl = viewModel.uploadEventImageToCloudinary(
+                        appContext = context,
+                        imageUri = selectedUri,
+                        eventName = eventName
+                    )
+                    isUploadingImage = false
+                    if (uploadedUrl.isNullOrBlank()) {
+                        snackbarHostState.showSnackbar("Image upload failed. Please try again.")
+                    } else {
+                        imageUri = Uri.parse(uploadedUrl)
+                        snackbarHostState.showSnackbar("Image uploaded successfully.")
+                    }
+                }
+            }
         }
 
-        // Real event images organized by categories
-        val realEventImages = mapOf(
-            "Concert" to listOf(
-                "https://plus.unsplash.com/premium_photo-1681830630610-9f26c9729b75?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8Y29uY2VydHxlbnwwfHwwfHx8MA%3D%3D",
-                "https://images.unsplash.com/photo-1429514513361-8fa32282fd5f?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8Y29uY2VydHxlbnwwfHwwfHx8MA%3D%3D",
-                "https://plus.unsplash.com/premium_photo-1661306437817-8ab34be91e0c?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8OXx8Y29uY2VydHxlbnwwfHwwfHx8MA%3D%3D"
-            ),
-            "Conference" to listOf(
-                "https://plus.unsplash.com/premium_photo-1664302656889-e0ff44331843?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MXx8Q29uZmVyZW5jZXxlbnwwfHwwfHx8MA%3D%3D",
-                "https://images.unsplash.com/photo-1477281765962-ef34e8bb0967?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8Q29uZmVyZW5jZXxlbnwwfHwwfHx8MA%3D%3D",
-                "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTR8fENvbmZlcmVuY2V8ZW58MHx8MHx8fDA%3D"
-            ),
-            "Sports" to listOf(
-                "https://images.unsplash.com/photo-1452626038306-9aae5e071dd3?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTh8fHNwb3J0JTIwZXZlbnRzfGVufDB8fDB8fHww",
-                "https://images.unsplash.com/photo-1569863959165-56dae551d4fc?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTR8fHNwb3J0JTIwZXZlbnRzfGVufDB8fDB8fHww",
-                "https://media.istockphoto.com/id/952397298/photo/friends-football-supporter-fans-cheering-with-confetti-watching-soccer-match-event-at-stadium.jpg?s=612x612&w=0&k=20&c=nVAQqWLkUW62OuHxj-d3PTHsljnekRGhutCjZIoASNs="
-            )
+        val realEventImages = rememberCloudinarySampleImagesForEdit(
+            categories = categoriesList,
+            samplesPerCategory = 3
         )
 
         Scaffold(
@@ -169,10 +233,10 @@ fun EditEventScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
 
-                    // Edits a tab row
-                    TabRow(
+                    ScrollableTabRow(
                         selectedTabIndex = selectedTabIndex,
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        edgePadding = 8.dp
                     ) {
                         Tab(
                             text = { Text("Event Details") },
@@ -197,14 +261,17 @@ fun EditEventScreen(
                     }
 
                     when (selectedTabIndex) {
-                        0 -> EventDetailsSectionEdit(
+                        0 -> EventDetailsSection(
                             eventName = eventName,
                             startDate = startDate,
                             endDate = endDate,
                             isMultiDayEvent = isMultiDayEvent,
                             eventTime = eventTime,
+                            durationLabel = durationLabel,
+                            durationMinutes = durationMinutes,
                             eventVenue = eventVenue,
                             eventStatus = eventStatus,
+                            isImportant = isImportant,
                             eventCategory = eventCategory,
                             eventOrganizer = eventOrganizer,
                             eventDescription = eventDescription,
@@ -213,8 +280,28 @@ fun EditEventScreen(
                             onEndDateChange = { newEndDate -> endDate = newEndDate },
                             onIsMultiDayEventChange = { isMultiDayEvent = it },
                             onEventTimeChange = { newEventTime -> eventTime = newEventTime },
+                            onDurationChange = { label, minutes ->
+                                durationLabel = label
+                                durationMinutes = minutes
+                            },
                             onEventVenueChange = { newEventVenue -> eventVenue = newEventVenue },
+                            onImportantChange = { isImportant = it },
                             onEventCategoryChange = { newEventCategory -> eventCategory = newEventCategory },
+                            eventCategoryOptions = categoriesList,
+                            onAddEventCategory = { newCategory ->
+                                viewModel.addEventCategory(
+                                    categoryName = newCategory,
+                                    onSuccess = { addedCategory ->
+                                        eventCategory = addedCategory
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar("Category added: $addedCategory")
+                                        }
+                                    },
+                                    onFailure = { message ->
+                                        scope.launch { snackbarHostState.showSnackbar(message) }
+                                    }
+                                )
+                            },
                             onEventOrganizerChange = { newEventOrganizer -> eventOrganizer = newEventOrganizer },
                             onEventDescriptionChange = { newEventDescription ->
                                 eventDescription = newEventDescription
@@ -222,7 +309,7 @@ fun EditEventScreen(
                             eventNameAndDateError = { errorMessage -> eventNameAndDateError = errorMessage }
                         )
 
-                        1 -> TicketDetailsSectionEdit(
+                        1 -> TicketDetailsSection(
 
 
                             ticketTypes = ticketTypes,  //pass initial ticketTypes list
@@ -260,6 +347,16 @@ fun EditEventScreen(
                                     ) else ticketType
                                 }
                             },
+                            onTicketTypeFreeChange = { index, isFree ->
+                                ticketTypes = ticketTypes.mapIndexed { i, ticketType ->
+                                    if (i == index) {
+                                        if (isFree) ticketType.copy(isFree = true, price = 0.0)
+                                        else ticketType.copy(isFree = false)
+                                    } else {
+                                        ticketType
+                                    }
+                                }
+                            },
                             onRemoveTicketType = { index ->
 
                                 // filter through the ticket type list using their index and exclude the index of the ticketType we removing
@@ -267,8 +364,9 @@ fun EditEventScreen(
                             }
                         )
 
-                        2 -> EventImageSectionEdit(
+                        2 -> EventImageSection(
                             imageUri = imageUri,
+                            isUploadingImage = isUploadingImage,
                             onPickImageClick = { imagePickerLauncher.launch("image/*") },
                             realEventImages = realEventImages,
                             onImageSelected = { selectedImageUri ->
@@ -276,14 +374,16 @@ fun EditEventScreen(
                             }
                         )
 
-                        3 -> FinishSectionEdit(
+                        3 -> FinishSection(
                             eventName = eventName,
                             startDate = startDate,
                             endDate = endDate,
                             isMultiDayEvent = isMultiDayEvent,
                             eventTime = eventTime,
+                            durationLabel = durationLabel,
                             eventVenue = eventVenue,
                             eventStatus = eventStatus,
+                            isImportant = isImportant,
                             eventCategory = eventCategory,
                             eventOrganizer = eventOrganizer,
                             eventDescription = eventDescription,
@@ -310,11 +410,11 @@ fun EditEventScreen(
                                         endDate = endDate,
                                         isMultiDayEvent = isMultiDayEvent,
                                         eventTime = eventTime,
-                                        durationLabel = "",
-                                        durationMinutes = 0,
+                                        durationLabel = durationLabel,
+                                        durationMinutes = durationMinutes,
                                         eventVenue = eventVenue,
                                         eventStatus = eventStatus,
-                                        isImportant = false,
+                                        isImportant = isImportant,
                                         eventCategory = eventCategory,
                                         eventOrganizer = eventOrganizer,
                                         eventDescription = eventDescription,
@@ -324,8 +424,7 @@ fun EditEventScreen(
                                         //when successful
                                         onSuccess = {
                                             scope.launch {
-                                                //go back to Event Management Screen
-                                                navController.popBackStack()
+                                                markEventsUpdatedAndReturn()
                                             }
                                         },
                                         //when saving fails
@@ -361,11 +460,11 @@ fun EditEventScreen(
                                         endDate = endDate,
                                         isMultiDayEvent = isMultiDayEvent,
                                         eventTime = eventTime,
-                                        durationLabel = "",
-                                        durationMinutes = 0,
+                                        durationLabel = durationLabel,
+                                        durationMinutes = durationMinutes,
                                         eventVenue = eventVenue,
                                         eventStatus = eventStatus,
-                                        isImportant = false,
+                                        isImportant = isImportant,
                                         eventCategory = eventCategory,
                                         eventOrganizer = eventOrganizer,
                                         eventDescription = eventDescription,
@@ -375,7 +474,7 @@ fun EditEventScreen(
                                         onSuccess = {
                                             scope.launch {
                                                 //notificationViewModel.sendNewEventNotification()
-                                                navController.popBackStack()
+                                                markEventsUpdatedAndReturn()
                                             }
                                         },
                                         onFailure = { e ->
@@ -1348,6 +1447,51 @@ fun RealEventImageCardEdit(
     }
 }
 
+@Composable
+private fun EditEventStateScreen(
+    title: String,
+    message: String,
+    showLoading: Boolean = false,
+    onPrimaryAction: (() -> Unit)? = null,
+    primaryActionLabel: String = "",
+    onSecondaryAction: (() -> Unit)? = null,
+    secondaryActionLabel: String = ""
+) {
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (showLoading) {
+                CircularProgressIndicator()
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            Text(text = title, style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (onPrimaryAction != null) {
+                Spacer(modifier = Modifier.height(20.dp))
+                Button(onClick = onPrimaryAction) {
+                    Text(primaryActionLabel)
+                }
+            }
+            if (onSecondaryAction != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(onClick = onSecondaryAction) {
+                    Text(secondaryActionLabel)
+                }
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun EventImageSectionEditPreview() {
@@ -1360,5 +1504,27 @@ fun EventImageSectionEditPreview() {
         ),
         onImageSelected = {}
     )
+}
+
+private fun NavController.getBackStackEntryOrNull(route: String) =
+    runCatching { getBackStackEntry(route) }.getOrNull()
+
+@Composable
+private fun rememberCloudinarySampleImagesForEdit(
+    categories: List<String>,
+    samplesPerCategory: Int,
+): Map<String, List<String>> {
+    val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
+    if (cloudName.isBlank() || cloudName == "YOUR_CLOUD_NAME") return emptyMap()
+
+    val safeCount = samplesPerCategory.coerceAtLeast(1)
+    return remember(cloudName, categories, safeCount) {
+        categories.associateWith { categoryDisplay ->
+            val token = categoryDisplay.replace(" ", "").trim()
+            (1..safeCount).map { index ->
+                "https://res.cloudinary.com/$cloudName/image/upload/${token}${index}.jpg"
+            }
+        }
+    }
 }
 

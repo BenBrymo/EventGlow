@@ -29,6 +29,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    match /eventCategories/{categoryId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
     match /boughtTickets/{ticketId} {
       allow read: if signedIn();
       allow create: if signedIn();
@@ -55,4 +60,3 @@ service cloud.firestore {
     }
   }
 }
-

@@ -402,6 +402,7 @@ fun CreateEventScreen(
                                         //when successful
                                         onSuccess = {
                                             scope.launch {
+                                                snackbarHostState.showSnackbar("Event saved to drafts.")
                                                 markEventsUpdatedAndReturn()
                                             }
                                         },

@@ -1,6 +1,7 @@
 package com.example.eventglow.events_management
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -8,7 +9,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
@@ -28,6 +28,12 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.Event
+import com.example.eventglow.ui.theme.Background
+import com.example.eventglow.ui.theme.BorderSubtle
+import com.example.eventglow.ui.theme.BrandPrimary
+import com.example.eventglow.ui.theme.SurfaceLevel3
+import com.example.eventglow.ui.theme.TextPrimary
+import com.example.eventglow.ui.theme.TextSecondary
 
 
 @androidx.annotation.OptIn(UnstableApi::class)
@@ -47,24 +53,36 @@ fun DraftedEventsScreen(navController: NavController, viewModel: EventsManagemen
 
     // Scaffold to provide a basic material layout structure
     Scaffold(
+        containerColor = Background,
         // top bar
         topBar = {
             TopAppBar(
                 title = {
-                    Text(text = "Drafted Events", color = MaterialTheme.colorScheme.primary)
+                    Text(text = "Drafted Events", color = TextPrimary)
                 },
                 navigationIcon = {
                     IconButton(
                         onClick = { navController.popBackStack() } // navigates to Events Management Screen
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Navigate back",
+                            tint = TextPrimary
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Background,
+                    titleContentColor = TextPrimary
+                )
             )
         }
     ) { paddingValues ->
         // Surface to hold main contents with padding applied
-        Surface(Modifier.padding(paddingValues)) {
+        Surface(
+            modifier = Modifier.padding(paddingValues),
+            color = Background
+        ) {
             DraftedEventsMgt(
                 navController = navController,
                 onDeleteEventClick = { event ->
@@ -119,38 +137,54 @@ fun DraftedEventsMgt(
     onDeleteEventClick: (Event) -> Unit
 ) {
 
-    Column(modifier.fillMaxSize()) {
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredEvents = remember(draftedEvents, searchQuery) {
+        if (searchQuery.isBlank()) draftedEvents
+        else draftedEvents.filter {
+            it.eventName.contains(searchQuery, ignoreCase = true) ||
+                    it.eventVenue.contains(searchQuery, ignoreCase = true) ||
+                    it.eventCategory.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Background)
+    ) {
         // Search Bar
         SearchBarDrafted(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            onQueryChange = {},
-            query = ""
+            onQueryChange = { searchQuery = it },
+            query = searchQuery
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        if (draftedEvents.isEmpty()) {
+        if (filteredEvents.isEmpty()) {
             Text(
-                text = "No events available",
+                text = if (searchQuery.isBlank()) "No drafted events available." else "No drafted events match your search.",
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+                color = TextSecondary,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 28.dp)
             )
         } else {
             LazyColumn(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(draftedEvents) { draftedEvent ->
+                items(filteredEvents) { draftedEvent ->
                     EventItemDrafted(
                         event = draftedEvent,
                         onEventClick = { /* Handle event click */ },
                         onDeleteClick = { onDeleteEventClick(draftedEvent) },
                         onEditClick = {
                             navController.navigate("edit_event_screen/${draftedEvent.id}")
-                        },
-                        onCopyClick = {
-                            //viewModel.copyEvent(draftedEvent)
                         }
                     )
                 }
@@ -170,12 +204,12 @@ fun SearchBarDrafted(
     placeholder: String = "Search events"
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = RoundedCornerShape(16.dp),
+        color = SurfaceLevel3,
+        shape = RoundedCornerShape(18.dp),
         modifier = modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .shadow(4.dp, RoundedCornerShape(16.dp))
+            .padding(4.dp)
+            .shadow(2.dp, RoundedCornerShape(18.dp))
     ) {
         TextField(
             value = query,
@@ -184,18 +218,21 @@ fun SearchBarDrafted(
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    tint = TextSecondary
                 )
             },
             colors = TextFieldDefaults.textFieldColors(
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary,
+                containerColor = SurfaceLevel3,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent,
-                cursorColor = MaterialTheme.colorScheme.onSecondaryContainer
+                cursorColor = BrandPrimary
             ),
             placeholder = {
-                Text(placeholder, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.6f))
+                Text(placeholder, color = TextSecondary.copy(alpha = 0.7f))
             },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 56.dp)
@@ -209,28 +246,27 @@ fun EventItemDrafted(
     event: Event,
     onEventClick: (Event) -> Unit,
     onDeleteClick: (Event) -> Unit,
-    onEditClick: () -> Unit,
-    onCopyClick: (Event) -> Unit
+    onEditClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
-            .padding(8.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable { onEventClick(event) },
-        elevation = CardDefaults.cardElevation(8.dp),
+        elevation = CardDefaults.cardElevation(4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = SurfaceLevel3
         )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp)
+                .padding(10.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .height(180.dp)
+                    .height(190.dp)
                     .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
             ) {
                 Image(
                     painter = rememberAsyncImagePainter(event.imageUri),
@@ -241,11 +277,11 @@ fun EventItemDrafted(
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(16.dp)
+                        .padding(14.dp)
                 ) {
                     Text(
                         text = event.eventName,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.titleMedium,
                         color = Color.White
                     )
                     Text(
@@ -257,46 +293,57 @@ fun EventItemDrafted(
             }
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(horizontal = 10.dp, vertical = 12.dp)
                     .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = event.eventVenue,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = event.eventStatus,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = event.eventVenue,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = event.eventCategory.ifBlank { "Uncategorized" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(BrandPrimary.copy(alpha = 0.15f))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = event.eventStatus.uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = BrandPrimary
+                    )
+                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+
+            Divider(color = BorderSubtle)
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End
             ) {
-                IconButton(onClick = { onDeleteClick(event) }) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete Event"
-                    )
-                }
                 IconButton(onClick = { onEditClick() }) {
                     Icon(
                         imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Event"
+                        contentDescription = "Edit Event",
+                        tint = BrandPrimary
                     )
                 }
-                IconButton(onClick = { onCopyClick(event) }) {
+                IconButton(onClick = { onDeleteClick(event) }) {
                     Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy Event"
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Event",
+                        tint = MaterialTheme.colorScheme.error
                     )
                 }
             }
@@ -341,8 +388,7 @@ fun EventItemDraftedPreview() {
         ),
         onEventClick = {},
         onDeleteClick = {},
-        onEditClick = {},
-        onCopyClick = {}
+        onEditClick = {}
     )
 }
 
