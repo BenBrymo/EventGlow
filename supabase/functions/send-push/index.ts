@@ -4,7 +4,11 @@ type PushPayload = {
   title: string;
   body: string;
   targetRole: "all" | "user" | "admin";
-  route: "detailed_event_screen" | "detailed_event_screen_admin";
+  route:
+    | "detailed_event_screen"
+    | "detailed_event_screen_admin"
+    | "admin_main_screen"
+    | "user_main_screen";
   eventId?: string;
 };
 
@@ -76,7 +80,12 @@ function getAllowedRoles(): Set<string> {
 
 function getAllowedRoutes(): Set<string> {
   const fromEnv = parseCsvEnv("ALLOWED_ROUTES");
-  const defaults = ["detailed_event_screen", "detailed_event_screen_admin"];
+  const defaults = [
+    "detailed_event_screen",
+    "detailed_event_screen_admin",
+    "admin_main_screen",
+    "user_main_screen",
+  ];
   return new Set(fromEnv.length > 0 ? fromEnv : defaults);
 }
 

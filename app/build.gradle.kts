@@ -14,6 +14,8 @@ val supabaseFunctionsAnonKey =
     (project.findProperty("SUPABASE_FUNCTIONS_ANON_KEY") as? String)?.trim().orEmpty()
 val supabaseFunctionsPushPath =
     (project.findProperty("SUPABASE_FUNCTIONS_PUSH_PATH") as? String)?.trim().orEmpty()
+val supabaseFunctionsCreateUserPath =
+    (project.findProperty("SUPABASE_FUNCTIONS_CREATE_USER_PATH") as? String)?.trim().orEmpty()
 
 android {
     namespace = "com.example.eventglow"
@@ -30,6 +32,11 @@ android {
         buildConfigField("String", "SUPABASE_FUNCTIONS_BASE_URL", supabaseFunctionsBaseUrl.toBuildConfigString())
         buildConfigField("String", "SUPABASE_FUNCTIONS_ANON_KEY", supabaseFunctionsAnonKey.toBuildConfigString())
         buildConfigField("String", "SUPABASE_FUNCTIONS_PUSH_PATH", supabaseFunctionsPushPath.toBuildConfigString())
+        buildConfigField(
+            "String",
+            "SUPABASE_FUNCTIONS_CREATE_USER_PATH",
+            supabaseFunctionsCreateUserPath.toBuildConfigString()
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

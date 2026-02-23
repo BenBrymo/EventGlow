@@ -74,8 +74,14 @@ class FirestoreNotificationSenderViewModel(application: Application) : BaseViewM
             onResult(false, message)
             return
         }
-        if (normalizedRoute !in setOf("detailed_event_screen", "detailed_event_screen_admin")) {
+        if (normalizedRoute !in SUPPORTED_NOTIFICATION_ROUTES) {
             val message = "Unsupported route."
+            setFailure(message)
+            onResult(false, message)
+            return
+        }
+        if (routeRequiresEventId(normalizedRoute) && normalizedEventId.isBlank()) {
+            val message = "eventId is required for event detail route."
             setFailure(message)
             onResult(false, message)
             return

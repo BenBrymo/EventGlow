@@ -25,7 +25,9 @@ object LocalNotificationHelper {
         createChannelIfNeeded(context)
 
         val launchIntent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
             if (!route.isNullOrBlank()) {
                 putExtra(NotificationDeepLinkStore.EXTRA_ROUTE, route)
             }
@@ -36,7 +38,7 @@ object LocalNotificationHelper {
 
         val pendingIntent = PendingIntent.getActivity(
             context,
-            0,
+            "${route.orEmpty()}|${eventId.orEmpty()}".hashCode(),
             launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -67,4 +69,3 @@ object LocalNotificationHelper {
         manager?.createNotificationChannel(channel)
     }
 }
-

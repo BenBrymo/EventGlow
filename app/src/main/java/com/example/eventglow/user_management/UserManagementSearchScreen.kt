@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -32,6 +33,15 @@ fun UserManagementSearchScreen(
 ) {
     val searchQuery by userViewModel.searchQueryUser.collectAsState()
     val users by userViewModel.filteredUsers.collectAsState()
+    val allUsers by userViewModel.users.collectAsState()
+
+    LaunchedEffect(allUsers.size) {
+        if (allUsers.isEmpty()) {
+            userViewModel.fetchUsers()
+        } else {
+            userViewModel.onSearchQueryChangeUser(searchQuery)
+        }
+    }
 
     UserManagementSearchContent(
         searchQuery = searchQuery,
@@ -75,7 +85,7 @@ fun UserManagementSearchContent(
 
 
 @Composable
-fun UserRow(user: User, onClick: (User) -> Unit) {
+private fun UserRow(user: User, onClick: (User) -> Unit) {
     Row(
         modifier = Modifier
             .clickable { onClick(user) }

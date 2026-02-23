@@ -39,6 +39,7 @@ import com.example.eventglow.BuildConfig
 import com.example.eventglow.dataClass.TicketType
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.notifications.FirestoreNotificationSenderViewModel
+import com.example.eventglow.notifications.ROUTE_DETAILED_EVENT_SCREEN
 
 import kotlinx.coroutines.launch
 import java.util.*
@@ -114,7 +115,7 @@ fun CopyEventScreen(
 
     } else {
 
-        // Variables to hold event details
+        // Variables to hold event detailsl
         var eventName by remember { mutableStateOf(event.eventName) }
         var startDate by remember { mutableStateOf(event.startDate) }
         var endDate by remember { mutableStateOf(event.endDate) }
@@ -137,6 +138,10 @@ fun CopyEventScreen(
 
         var validationErrors = remember { mutableListOf<String>() }
         var pendingPublishedEventId by remember { mutableStateOf<String?>(null) }
+        var useCustomPublishNotification by remember { mutableStateOf(false) }
+        var publishNotificationTitle by remember { mutableStateOf("") }
+        var publishNotificationBody by remember { mutableStateOf("") }
+        var publishNotificationTargetRole by remember { mutableStateOf("all") }
 
         var eventNameAndDateError by remember { mutableStateOf<String?>(null) }
 
@@ -265,9 +270,14 @@ fun CopyEventScreen(
                             onClick = { selectedTabIndex = 2 }  // selects Event Images section
                         )
                         Tab(
+                            text = { Text("Notification") },
+                            selected = selectedTabIndex == 3,
+                            onClick = { selectedTabIndex = 3 }
+                        )
+                        Tab(
                             text = { Text("Finish") },
-                            selected = selectedTabIndex == 3, //set selected to true
-                            onClick = { selectedTabIndex = 3 }  // selects Finish section
+                            selected = selectedTabIndex == 4,
+                            onClick = { selectedTabIndex = 4 }
                         )
                     }
 
@@ -385,7 +395,18 @@ fun CopyEventScreen(
                             }
                         )
 
-                        3 -> FinishSection(
+                        3 -> EventNotificationSection(
+                            useCustomNotification = useCustomPublishNotification,
+                            notificationTitle = publishNotificationTitle,
+                            notificationBody = publishNotificationBody,
+                            notificationTargetRole = publishNotificationTargetRole,
+                            onUseCustomNotificationChange = { useCustomPublishNotification = it },
+                            onNotificationTitleChange = { publishNotificationTitle = it },
+                            onNotificationBodyChange = { publishNotificationBody = it },
+                            onNotificationTargetRoleChange = { publishNotificationTargetRole = it }
+                        )
+
+                        4 -> FinishSection(
                             eventName = eventName,
                             startDate = startDate,
                             endDate = endDate,
@@ -492,11 +513,21 @@ fun CopyEventScreen(
                                                 scope.launch { markEventsUpdatedAndReturn() }
                                                 return@saveEventToFirestore
                                             }
+                                            val notificationTitle = if (useCustomPublishNotification) {
+                                                publishNotificationTitle.trim().ifBlank { "New Event Published" }
+                                            } else {
+                                                "New Event Published"
+                                            }
+                                            val notificationBody = if (useCustomPublishNotification) {
+                                                publishNotificationBody.trim().ifBlank { eventName }
+                                            } else {
+                                                eventName
+                                            }
                                             senderViewModel.sendNotificationToRole(
-                                                title = "New Event Published",
-                                                body = eventName,
-                                                targetRole = "all",
-                                                route = "detailed_event_screen",
+                                                title = notificationTitle,
+                                                body = notificationBody,
+                                                targetRole = publishNotificationTargetRole,
+                                                route = ROUTE_DETAILED_EVENT_SCREEN,
                                                 eventId = savedEventId,
                                                 onResult = { _, _ ->
                                                     pendingPublishedEventId = null
@@ -1473,6 +1504,83 @@ fun RealEventImageCardCopy(
         )
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EventNotificationSection(
+    useCustomNotification: Boolean,
+    notificationTitle: String,
+    notificationBody: String,
+    notificationTargetRole: String,
+    onUseCustomNotificationChange: (Boolean) -> Unit,
+    onNotificationTitleChange: (String) -> Unit,
+    onNotificationBodyChange: (String) -> Unit,
+    onNotificationTargetRoleChange: (String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text(
+                text = "Publish Notification",
+                style = MaterialTheme.typography.titleLarge
+            )
+            Text(
+                text = "Configure the push notification to send when this event is published.",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Use custom notification")
+                Switch(
+                    checked = useCustomNotification,
+                    onCheckedChange = onUseCustomNotificationChange
+                )
+            }
+        }
+        item {
+            Text("Target Role", style = MaterialTheme.typography.labelLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("all", "user", "admin").forEach { role ->
+                    FilterChip(
+                        selected = notificationTargetRole == role,
+                        onClick = { onNotificationTargetRoleChange(role) },
+                        label = { Text(role) }
+                    )
+                }
+            }
+        }
+        if (useCustomNotification) {
+            item {
+                OutlinedTextField(
+                    value = notificationTitle,
+                    onValueChange = onNotificationTitleChange,
+                    label = { Text("Custom Title") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            item {
+                OutlinedTextField(
+                    value = notificationBody,
+                    onValueChange = onNotificationBodyChange,
+                    label = { Text("Custom Body") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+
 
 @Preview(showBackground = true, apiLevel = 34)
 @Composable

@@ -23,6 +23,7 @@ import com.example.eventglow.events_management.EventDetailsAdminScreen
 import com.example.eventglow.events_management.FilterSearchScreenAdmin
 import com.example.eventglow.events_management.FilteredResultScreenAdmin
 import com.example.eventglow.events_management.ManageEventsScreen
+import com.example.eventglow.notifications.NotificationsScreen
 import com.example.eventglow.settings.AdminChangePasswordScreen
 import com.example.eventglow.settings.AdminHelpCenterScreen
 import com.example.eventglow.settings.AdminSettingsScreen
@@ -65,6 +66,7 @@ object Routes {
     const val ADMIN_SUPPORT_SCREEN = "admin_support_screen"
     const val ADMIN_HELP_CENTER_SCREEN = "admin_help_center_screen"
     const val ADMIN_UPDATE_PROFILE_SCREEN = "admin_update_profile_screen"
+    const val NOTIFICATIONS_SCREEN = "notifications_screen"
 }
 
 
@@ -236,6 +238,10 @@ fun NavGraph(navController: NavHostController) {
             AdminUpdateProfileScreen(
                 onBack = { navController.popBackStack() }
             )
+        }
+
+        composable(Routes.NOTIFICATIONS_SCREEN) {
+            NotificationsScreen(navController = navController)
         }
     }
 }

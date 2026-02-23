@@ -630,6 +630,7 @@ private fun AdminModernDrawerContent(
         DrawerNavItem("Event Management", Icons.Default.Event, Routes.EVENTS_MANAGEMENT_SCREEN),
         DrawerNavItem("User Management", Icons.Default.AccountBox, Routes.USER_MANAGEMENT_SCREEN),
         DrawerNavItem("Ticket Management", Icons.AutoMirrored.Filled.AirplaneTicket, Routes.TICKET_MANAGEMENT_SCREEN),
+        DrawerNavItem("Notifications", Icons.Default.Notifications, Routes.NOTIFICATIONS_SCREEN),
         DrawerNavItem("Reporting & Analytics", Icons.Default.Analytics, Routes.REPORTING_AND_ANALYTICS),
         DrawerNavItem("Settings", Icons.Default.Settings, Routes.SETTINGS)
     )

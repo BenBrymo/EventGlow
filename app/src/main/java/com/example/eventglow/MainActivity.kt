@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,10 @@ import com.example.eventglow.navigation.NavGraph
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.navigation.navigateAndClearTo
 import com.example.eventglow.notifications.NotificationDeepLinkStore
+import com.example.eventglow.notifications.ROUTE_ADMIN_MAIN_SCREEN
+import com.example.eventglow.notifications.ROUTE_DETAILED_EVENT_SCREEN
+import com.example.eventglow.notifications.ROUTE_DETAILED_EVENT_SCREEN_ADMIN
+import com.example.eventglow.notifications.ROUTE_USER_MAIN_SCREEN
 import com.example.eventglow.ui.theme.EventGlowTheme
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
@@ -171,8 +176,10 @@ fun SplashScreen(
 
                         //when role is user
                         "user" -> {
-                            if (pendingDeepLink?.route == "detailed_event_screen" && !pendingDeepLink.eventId.isNullOrBlank()) {
+                            if (pendingDeepLink?.route == ROUTE_DETAILED_EVENT_SCREEN && !pendingDeepLink.eventId.isNullOrBlank()) {
                                 navController.navigateAndClearTo("${Routes.USER_MAIN_SCREEN}?eventId=${pendingDeepLink.eventId}")
+                            } else if (pendingDeepLink?.route == ROUTE_USER_MAIN_SCREEN || pendingDeepLink?.route == ROUTE_ADMIN_MAIN_SCREEN) {
+                                navController.navigateAndClearTo(Routes.USER_MAIN_SCREEN)
                             } else {
                                 navController.navigateAndClearTo(Routes.USER_MAIN_SCREEN)
                             }
@@ -180,11 +187,14 @@ fun SplashScreen(
 
                         //when role is admin
                         "admin" -> {
-                            if ((pendingDeepLink?.route == "detailed_event_screen_admin" ||
-                                        pendingDeepLink?.route == "detailed_event_screen") &&
+                            if ((pendingDeepLink?.route == ROUTE_DETAILED_EVENT_SCREEN_ADMIN ||
+                                        pendingDeepLink?.route == ROUTE_DETAILED_EVENT_SCREEN) &&
                                 !pendingDeepLink.eventId.isNullOrBlank()
                             ) {
-                                navController.navigateAndClearTo("detailed_event_screen_admin/${pendingDeepLink.eventId}")
+                                navController.navigateAndClearTo(Routes.ADMIN_MAIN_SCREEN)
+                                navController.navigate("${ROUTE_DETAILED_EVENT_SCREEN_ADMIN}/${pendingDeepLink.eventId}")
+                            } else if (pendingDeepLink?.route == ROUTE_ADMIN_MAIN_SCREEN || pendingDeepLink?.route == ROUTE_USER_MAIN_SCREEN) {
+                                navController.navigateAndClearTo(Routes.ADMIN_MAIN_SCREEN)
                             } else {
                                 navController.navigateAndClearTo(Routes.ADMIN_MAIN_SCREEN)
                             }
@@ -232,6 +242,10 @@ fun SplashScreen(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+
             }
 
             Column(
@@ -245,7 +259,18 @@ fun SplashScreen(
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.paddingFromBaseline(25.dp),
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = stringResource(id = R.string.copyright),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelLarge,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.paddingFromBaseline(25.dp),
                 )
             }
         }
