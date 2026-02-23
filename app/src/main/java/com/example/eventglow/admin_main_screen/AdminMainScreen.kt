@@ -8,11 +8,14 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -416,12 +419,15 @@ fun DashboardCard(
 }
 
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun EventsSection(
     title: String,
     events: List<Event>,
     onEventClick: (Event) -> Unit
 ) {
+    val eventsListState = rememberLazyListState()
+    val snapFlingBehavior = rememberSnapFlingBehavior(lazyListState = eventsListState)
 
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
 
@@ -442,9 +448,16 @@ fun EventsSection(
             )
 
         } else {
-
-            events.forEach { event ->
-                EventCard(event = event, onClick = { onEventClick(event) })
+            LazyRow(
+                state = eventsListState,
+                flingBehavior = snapFlingBehavior,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 6.dp)
+            ) {
+                items(events.size) { index ->
+                    val event = events[index]
+                    EventCard(event = event, onClick = { onEventClick(event) })
+                }
             }
         }
     }
@@ -456,31 +469,66 @@ fun EventCard(
     event: Event,
     onClick: () -> Unit
 ) {
-
-    Box(
+    Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(210.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
+            .width(280.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(158.dp)
+            ) {
+                AsyncImage(
+                    model = event.imageUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
 
-        AsyncImage(
-            model = event.imageUri,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    val freeLabel = event.ticketTypes.any { it.price <= 0.0 }
+                    Text(
+                        if (freeLabel) "Free" else "Paid",
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(20.dp))
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            val freeLabel = event.ticketTypes.any { it.price <= 0.0 }
-            Text(if (freeLabel) "Free" else "Paid", color = MaterialTheme.colorScheme.onPrimary)
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = event.eventName.ifBlank { "Untitled Event" },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = event.startDate.ifBlank { "Date not set" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+                Text(
+                    text = event.eventVenue.ifBlank { "Venue not set" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

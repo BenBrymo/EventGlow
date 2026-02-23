@@ -1,0 +1,4 @@
+project_id = "eventglow"
+
+[functions.send-push]
+verify_jwt = false

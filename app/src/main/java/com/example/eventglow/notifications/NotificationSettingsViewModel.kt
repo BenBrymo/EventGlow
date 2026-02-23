@@ -21,6 +21,7 @@ class NotificationSettingsViewModel(application: Application) : BaseViewModel(ap
 
     private val _isUpdating = MutableStateFlow(false)
     val isUpdating: StateFlow<Boolean> = _isUpdating.asStateFlow()
+    private var currentRole: String = "user"
 
     init {
         fetchNotificationPreference()
@@ -34,8 +35,9 @@ class NotificationSettingsViewModel(application: Application) : BaseViewModel(ap
         launchWhenConnected(tag = "NotificationSettingsViewModel") {
             val snapshot = firestore.collection("users").document(userId).get().await()
             val enabled = snapshot.getBoolean("notificationsEnabled") ?: true
+            currentRole = snapshot.getString("role")?.trim()?.lowercase().orEmpty().ifBlank { "user" }
             _notificationsEnabled.value = enabled
-            syncTopicSubscription(enabled)
+            syncTopicSubscriptions(enabled = enabled, role = currentRole)
             setSuccess()
         }
     }
@@ -64,18 +66,25 @@ class NotificationSettingsViewModel(application: Application) : BaseViewModel(ap
                 .set(mapOf("notificationsEnabled" to enabled), SetOptions.merge())
                 .await()
 
-            syncTopicSubscription(enabled)
+            syncTopicSubscriptions(enabled = enabled, role = currentRole)
             _isUpdating.value = false
             setSuccess()
         }
     }
 
-    private fun syncTopicSubscription(enabled: Boolean) {
-        val topic = "eventglow_general"
+    private fun syncTopicSubscriptions(enabled: Boolean, role: String) {
+        val generalTopic = "eventglow_general"
+        val roleTopic = when (role) {
+            "admin" -> "eventglow_admin"
+            else -> "eventglow_user"
+        }
+
         if (enabled) {
-            FirebaseMessaging.getInstance().subscribeToTopic(topic)
+            FirebaseMessaging.getInstance().subscribeToTopic(generalTopic)
+            FirebaseMessaging.getInstance().subscribeToTopic(roleTopic)
         } else {
-            FirebaseMessaging.getInstance().unsubscribeFromTopic(topic)
+            FirebaseMessaging.getInstance().unsubscribeFromTopic(generalTopic)
+            FirebaseMessaging.getInstance().unsubscribeFromTopic(roleTopic)
         }
     }
 }

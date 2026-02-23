@@ -520,6 +520,7 @@ class EventsManagementViewModel : ViewModel() {
         isDraft: Boolean,
         eventOrganizer: String,
         eventDescription: String,
+        onSaved: (String) -> Unit = {},
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
@@ -565,6 +566,7 @@ class EventsManagementViewModel : ViewModel() {
                 .add(eventData)
 
                 .addOnSuccessListener { documentReference ->
+                    onSaved(documentReference.id)
                     val newEvent = Event(
                         id = documentReference.id,  //assigns id of created document to event id
                         eventName = eventName,

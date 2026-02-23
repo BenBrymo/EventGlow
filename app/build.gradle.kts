@@ -5,6 +5,16 @@ plugins {
     alias(libs.plugins.google.services)
 }
 
+fun String.toBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val supabaseFunctionsBaseUrl =
+    (project.findProperty("SUPABASE_FUNCTIONS_BASE_URL") as? String)?.trim().orEmpty()
+val supabaseFunctionsAnonKey =
+    (project.findProperty("SUPABASE_FUNCTIONS_ANON_KEY") as? String)?.trim().orEmpty()
+val supabaseFunctionsPushPath =
+    (project.findProperty("SUPABASE_FUNCTIONS_PUSH_PATH") as? String)?.trim().orEmpty()
+
 android {
     namespace = "com.example.eventglow"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -17,6 +27,9 @@ android {
         versionName = "1.0"
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"djakhwvat\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"eventGlowPreset\"")
+        buildConfigField("String", "SUPABASE_FUNCTIONS_BASE_URL", supabaseFunctionsBaseUrl.toBuildConfigString())
+        buildConfigField("String", "SUPABASE_FUNCTIONS_ANON_KEY", supabaseFunctionsAnonKey.toBuildConfigString())
+        buildConfigField("String", "SUPABASE_FUNCTIONS_PUSH_PATH", supabaseFunctionsPushPath.toBuildConfigString())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }

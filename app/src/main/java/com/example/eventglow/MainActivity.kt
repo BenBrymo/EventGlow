@@ -13,7 +13,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -24,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -38,8 +36,6 @@ import com.example.eventglow.dataClass.UserPreferences
 import com.example.eventglow.navigation.NavGraph
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.navigation.navigateAndClearTo
-import com.example.eventglow.notifications.FirestoreNotificationListener
-import com.example.eventglow.notifications.LocalNotificationHelper
 import com.example.eventglow.notifications.NotificationDeepLinkStore
 import com.example.eventglow.ui.theme.EventGlowTheme
 import com.google.firebase.FirebaseApp
@@ -48,7 +44,6 @@ import com.google.firebase.appcheck.debug.DebugAppCheckProviderFactory
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.delay
@@ -57,6 +52,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val userPreferences by lazy { UserPreferences(application) }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_EventGlow)
@@ -73,6 +69,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
 
     private fun installFirebaseAppCheck() {
         val firebaseAppCheck = FirebaseAppCheck.getInstance()
@@ -134,34 +131,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MyApp() {
     val navController = rememberNavController()
-    val sharedPreferencesViewModel: SharedPreferencesViewModel = viewModel()
-    val userData by sharedPreferencesViewModel.userInfo.collectAsState()
-    val role = userData["ROLE"]?.trim()?.lowercase()
-    val context = LocalContext.current
-
-    DisposableEffect(role) {
-        var registration: ListenerRegistration? = null
-        if (!role.isNullOrBlank()) {
-            registration = FirestoreNotificationListener.start(
-                role = role,
-                onNewNotification = { notification ->
-                    LocalNotificationHelper.show(
-                        context = context,
-                        title = notification.title,
-                        body = notification.body,
-                        route = notification.route,
-                        eventId = notification.eventId
-                    )
-                },
-                onError = { throwable ->
-                    Log.d("MyApp", "Notification listener error: ${throwable.message}")
-                }
-            )
-        }
-        onDispose {
-            registration?.remove()
-        }
-    }
 
     NavGraph(navController = navController)
 }
@@ -211,7 +180,10 @@ fun SplashScreen(
 
                         //when role is admin
                         "admin" -> {
-                            if (pendingDeepLink?.route == "detailed_event_screen_admin" && !pendingDeepLink.eventId.isNullOrBlank()) {
+                            if ((pendingDeepLink?.route == "detailed_event_screen_admin" ||
+                                        pendingDeepLink?.route == "detailed_event_screen") &&
+                                !pendingDeepLink.eventId.isNullOrBlank()
+                            ) {
                                 navController.navigateAndClearTo("detailed_event_screen_admin/${pendingDeepLink.eventId}")
                             } else {
                                 navController.navigateAndClearTo(Routes.ADMIN_MAIN_SCREEN)
@@ -250,8 +222,8 @@ fun SplashScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(128.dp)
-                        .clip(RoundedCornerShape(32.dp))
+                        .size(112.dp)
+                        .clip(RoundedCornerShape(24.dp))
                 ) {
                     Image(
                         painter = painterResource(R.drawable.applogo),
@@ -260,25 +232,6 @@ fun SplashScreen(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "EventGlow",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Events made simple",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
             }
 
             Column(
@@ -287,17 +240,11 @@ fun SplashScreen(
                     .fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                CircularProgressIndicator(
-                    strokeWidth = 2.5.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
                 Text(
-                    text = stringResource(id = R.string.copyright),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelLarge,
+                    text = "EventGlow",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onBackground,
                     textAlign = TextAlign.Center
                 )
             }

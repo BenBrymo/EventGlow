@@ -47,6 +47,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.BuildConfig
 import com.example.eventglow.dataClass.TicketType
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.notifications.FirestoreNotificationSenderViewModel
 import com.example.eventglow.ui.theme.EventGlowTheme
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -74,6 +75,7 @@ private fun formatDurationLabel(minutes: Int): String {
 fun CreateEventScreen(
     navController: NavController,
     viewModel: EventsManagementViewModel = viewModel(),
+    senderViewModel: FirestoreNotificationSenderViewModel = viewModel(),
 ) {
 
     // Remember coroutine scope for performing asynchronous actions
@@ -97,6 +99,7 @@ fun CreateEventScreen(
     var eventOrganizer by remember { mutableStateOf("") }
     var eventDescription by remember { mutableStateOf("") }
     var validationErrors = remember { mutableListOf<String>() }
+    var pendingPublishedEventId by remember { mutableStateOf<String?>(null) }
 
     var eventNameAndDateError by remember { mutableStateOf<String?>(null) }
     val eventCategories by viewModel.eventCategories.collectAsState()
@@ -136,6 +139,7 @@ fun CreateEventScreen(
 
     // Snackbar state
     val snackbarHostState = remember { SnackbarHostState() }
+    val pushErrorMessage by senderViewModel.errorMessage.collectAsState()
 
     // Event Image picker launcher
     val context = LocalContext.current
@@ -173,6 +177,12 @@ fun CreateEventScreen(
 
     LaunchedEffect(Unit) {
         viewModel.fetchEventCategories()
+    }
+
+    LaunchedEffect(pushErrorMessage) {
+        val message = pushErrorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        senderViewModel.clearError()
     }
 
     // Real event images organized by categories
@@ -450,11 +460,26 @@ fun CreateEventScreen(
                                         ticketTypes = ticketTypes,
                                         imageUri = imageUri,
                                         isDraft = false,
+                                        onSaved = { savedEventId ->
+                                            pendingPublishedEventId = savedEventId
+                                        },
                                         onSuccess = {
-                                            scope.launch {
-                                                //notificationViewModel.sendNewEventNotification()
-                                                markEventsUpdatedAndReturn()
+                                            val savedEventId = pendingPublishedEventId
+                                            if (savedEventId.isNullOrBlank()) {
+                                                scope.launch { markEventsUpdatedAndReturn() }
+                                                return@saveEventToFirestore
                                             }
+                                            senderViewModel.sendNotificationToRole(
+                                                title = "New Event Published",
+                                                body = eventName,
+                                                targetRole = "all",
+                                                route = "detailed_event_screen",
+                                                eventId = savedEventId,
+                                                onResult = { _, _ ->
+                                                    pendingPublishedEventId = null
+                                                    scope.launch { markEventsUpdatedAndReturn() }
+                                                }
+                                            )
                                         },
                                         onFailure = { e ->
                                             scope.launch {
