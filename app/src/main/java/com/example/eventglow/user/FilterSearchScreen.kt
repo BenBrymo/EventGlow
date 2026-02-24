@@ -20,7 +20,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.eventglow.dataClass.UserPreferences
 import com.example.eventglow.navigation.Routes
-import com.example.eventts.dataClass.FilterCriteria
 import java.util.*
 
 
@@ -44,12 +43,13 @@ fun FilterSearchScreen(
     var endDate by remember { mutableStateOf("") }
     var matchAllCriteria by remember { mutableStateOf(false) }
 
-    val criteria = FilterCriteria(
-        status = selectedStatus,
-        categories = selectedCategories,
-        startDate = startDate,
-        endDate = endDate
-    )
+//    val criteria = EventFilterCriteria(
+//        eventStatus = selectedStatus,
+//        eventCategories = selectedCategories,
+//        eventStartDate = startDate,
+//        endDate = endDate,
+//        matchAllCriteria = matchAllCriteria
+//    )
 
     // Function to show date picker
     val showDatePicker = remember { mutableStateOf(false) }
@@ -211,13 +211,13 @@ fun FilterSearchScreen(
                                     "FilterSearchScreen",
                                     "User has decided to match all chosen criteria now going to perform the search"
                                 )
-                                viewModel.filterEventsAdvancedMatchAllCriteria(criteria)
+                                //  viewModel.filterEventsAdvancedMatchAllCriteria(criteria)
                             } else {
                                 Log.d(
                                     "FilterSearchScreen",
                                     "User has decided not to match all chosen criteria now going to perform the search"
                                 )
-                                viewModel.filterEventsAdvancedDontMatchAllCriteria(criteria)
+                                // viewModel.filterEventsAdvancedDontMatchAllCriteria(criteria)
                             }
                             // Navigate to FilteredResultScreen with serialized data
                             navController.navigate(Routes.FILTERED_RESULT_SCREEN)

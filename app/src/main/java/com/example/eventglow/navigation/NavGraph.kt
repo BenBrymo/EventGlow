@@ -29,6 +29,7 @@ import com.example.eventglow.settings.AdminHelpCenterScreen
 import com.example.eventglow.settings.AdminSettingsScreen
 import com.example.eventglow.settings.AdminSupportScreen
 import com.example.eventglow.settings.AdminUpdateProfileScreen
+import com.example.eventglow.ticket_management.ScanQrScreen
 import com.example.eventglow.ticket_management.TicketManagementScreen
 import com.example.eventglow.user.UserMainScreen
 import com.example.eventglow.user_management.ManageUsersScreen
@@ -58,6 +59,7 @@ object Routes {
     const val FILTERED_RESULT_SCREEN_ADMIN = "filtered_result_screen_admin"
     const val FILTERED_RESULT_SCREEN = "filtered_result_screen"
     const val TICKET_MANAGEMENT_SCREEN = "ticket_management_screen"
+    const val SCAN_QR_SCREEN = "scan_qr_screen"
     const val USER_MANAGEMENT_SCREEN = "user_management_screen"
     const val REPORTING_AND_ANALYTICS = "reporting_and_analytics"
     const val USER_MANAGEMENT_SEARCH_SCREEN = "user_management_search_screen"
@@ -198,6 +200,10 @@ fun NavGraph(navController: NavHostController) {
 
         composable(Routes.TICKET_MANAGEMENT_SCREEN) {
             TicketManagementScreen(navController = navController)
+        }
+
+        composable(Routes.SCAN_QR_SCREEN) {
+            ScanQrScreen(onBackClick = { navController.popBackStack() })
         }
 
 

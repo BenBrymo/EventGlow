@@ -1,8 +1,9 @@
 package com.example.eventts.dataClass
 
-data class FilterCriteria(
-    val status: String = "",
-    val categories: Set<String> = emptySet(),
-    val startDate: String = "",
-    val endDate: String = ""
+data class EventFilterCriteria(
+    val eventStatus: String = "",
+    val eventCategories: List<String> = emptyList(),
+    val eventStartDate: String = "",
+    val eventEndDate: String = "",
+    val matchAllCriteria: Boolean = false
 )

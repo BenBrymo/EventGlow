@@ -7,8 +7,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +27,7 @@ import com.example.eventglow.dataClass.Transaction
 import com.example.eventglow.ticket_management.TicketManagementViewModel
 import kotlinx.coroutines.launch
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TicketDetailScreen(
@@ -36,13 +40,13 @@ fun TicketDetailScreen(
     val ticket = userViewModel.getBoughtTicketByReference(transactionReference)
     Log.d("TicketDetailScreen", "Ticket fetched: $ticket")
 
-    var transaction = Transaction()
+    var transaction by remember { mutableStateOf<Transaction?>(null) }
 
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         if (ticket != null) {
-            scope.launch { transaction = ticketManagementViewModel.getTransactionByReference(transactionReference)!! }
+            scope.launch { transaction = ticketManagementViewModel.getTransactionByReference(transactionReference) }
         }
     }
 
@@ -85,7 +89,7 @@ fun TicketDetailScreen(
                     )
                 )
                 Text(
-                    text = transaction.id,
+                    text = ticket?.transactionReference.orEmpty(),
                     style = MaterialTheme.typography.bodyLarge.copy(
                         color = Color.White,
                         fontWeight = FontWeight.Bold
@@ -156,12 +160,14 @@ fun TicketDetailScreen(
                     )
                     // Add more transaction details if available
                     Text(
-                        text = transaction.createdAt,
+                        text = transaction?.createdAt?.ifBlank { ticket?.paymentCreatedAt.orEmpty() }
+                            ?: ticket?.paymentCreatedAt.orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )
                     Text(
-                        text = transaction.paidAt,
+                        text = transaction?.paidAt?.ifBlank { ticket?.paymentPaidAt.orEmpty() }
+                            ?: ticket?.paymentPaidAt.orEmpty(),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(bottom = 4.dp)
                     )

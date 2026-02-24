@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.R
+import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.AccentOrange
 import com.example.eventglow.ui.theme.BackgroundBlack
 import com.example.eventglow.ui.theme.FieldBorderGray
@@ -186,6 +188,17 @@ fun TicketManagementScreen(navController: NavController) {
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
+            onClick = { navController.navigate(Routes.SCAN_QR_SCREEN) },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(imageVector = Icons.Default.QrCodeScanner, contentDescription = "Scan")
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Scan Ticket QR")
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 

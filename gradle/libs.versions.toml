@@ -32,6 +32,7 @@ serialization = "1.6.2"
 coil = "2.5.0"
 
 media3 = "1.4.0"
+playServicesCodeScanner = "16.1.0"
 
 junit = "4.13.2"
 androidxJunit = "1.1.5"
@@ -80,6 +81,7 @@ serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serializ
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
 media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
+play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "playServicesCodeScanner" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }

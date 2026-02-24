@@ -2,20 +2,23 @@ package com.example.eventglow.payment
 
 import android.app.Application
 import android.util.Log
-import androidx.lifecycle.AndroidViewModel
+import com.example.eventglow.BuildConfig
+import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.dataClass.Transaction
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
-import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 
-class PayStackPaymentViewModel(application: Application) : AndroidViewModel(application) {
+class PayStackPaymentViewModel(application: Application) : BaseViewModel(application) {
 
     // MutableStateFlow variables for authorization and verification results
     private val _authorizationResult = MutableStateFlow<AuthorizationResult>(AuthorizationResult.Idle)
@@ -23,6 +26,8 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
 
     private val _verificationResult = MutableStateFlow<VerificationResult>(VerificationResult.Idle)
     val verificationResult: StateFlow<VerificationResult> = _verificationResult
+    private val _latestVerifiedTransaction = MutableStateFlow<Transaction?>(null)
+    val latestVerifiedTransaction: StateFlow<Transaction?> = _latestVerifiedTransaction.asStateFlow()
 
     // Transaction reference
     var transactionReference: String? = null
@@ -30,46 +35,71 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
     // Firestore instance
     private val db = FirebaseFirestore.getInstance()
 
-    suspend fun initiatePayment(email: String, amount: String) {
-        return withContext(Dispatchers.IO) {
-            val url = "https://api.paystack.co/transaction/initialize"
-            val client = OkHttpClient()
-            val requestBody = FormBody.Builder()
-                .add("email", email)
-                .add("amount", amount)
-                .add("currency", "GHS") // Assuming GHS for Ghana
-                .build()
+    private val client = OkHttpClient()
+    private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-            val request = Request.Builder()
-                .url(url)
-                .post(requestBody)
-                .addHeader("Authorization", "Bearer sk_test_9391f4990ba13feeb62f9b0ae25ec9d6dd72ebe1")
-                .build()
+    private val supabaseBaseUrl = BuildConfig.SUPABASE_FUNCTIONS_BASE_URL.trimEnd('/')
+    private val supabaseAnonKey = BuildConfig.SUPABASE_FUNCTIONS_ANON_KEY
+    private val paystackInitPath = BuildConfig.SUPABASE_FUNCTIONS_PAYSTACK_INIT_PATH
+    private val paystackVerifyPath = BuildConfig.SUPABASE_FUNCTIONS_PAYSTACK_VERIFY_PATH
+
+    private fun functionUrl(path: String): String {
+        if (supabaseBaseUrl.isBlank() || path.isBlank()) {
+            throw IllegalStateException("Supabase function URL configuration is missing.")
+        }
+        return "$supabaseBaseUrl/${path.trimStart('/')}"
+    }
+
+    private fun supabasePostRequest(url: String, jsonBody: String): Request {
+        return Request.Builder()
+            .url(url)
+            .post(jsonBody.toRequestBody(jsonMediaType))
+            .addHeader("apikey", supabaseAnonKey)
+            .addHeader("Authorization", "Bearer $supabaseAnonKey")
+            .addHeader("Content-Type", "application/json")
+            .build()
+    }
+
+    suspend fun initiatePayment(email: String, amount: String) {
+        setLoading()
+        return withContext(Dispatchers.IO) {
+            val initUrl = functionUrl(paystackInitPath)
+            val payload = buildJsonObject {
+                put("email", email)
+                put("amount", amount)
+                put("currency", "GHS")
+            }.toString()
+            val request = supabasePostRequest(initUrl, payload)
 
             try {
                 Log.d("PayStackPaymentViewModel", "Initiating payment with email: $email and amount: $amount")
                 client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string().orEmpty()
                     if (response.isSuccessful) {
-                        val responseBody = response.body?.string()
-                        val jsonObject = Json.parseToJsonElement(responseBody ?: "").jsonObject
-                        val authorizationUrl =
-                            jsonObject["data"]?.jsonObject?.get("authorization_url")?.jsonPrimitive?.content
-                        transactionReference = jsonObject["data"]?.jsonObject?.get("reference")?.jsonPrimitive?.content
+                        val jsonObject = Json.parseToJsonElement(responseBody).jsonObject
+                        val authorizationUrl = jsonObject["authorizationUrl"]?.jsonPrimitive?.contentOrNull
+                            ?: jsonObject["data"]?.jsonObject?.get("authorization_url")?.jsonPrimitive?.contentOrNull
+                        transactionReference = jsonObject["reference"]?.jsonPrimitive?.contentOrNull
+                            ?: jsonObject["data"]?.jsonObject?.get("reference")?.jsonPrimitive?.contentOrNull
 
                         Log.d("PayStackPaymentViewModel", "Authorization URL: $authorizationUrl")
                         Log.d("PayStackPaymentViewModel", "Transaction Reference: $transactionReference")
 
                         authorizationUrl?.let { url ->
                             _authorizationResult.value = AuthorizationResult.Success(url)
+                            setSuccess()
                             Log.d("PayStackPaymentViewModel", "Authorization result set to success with URL: $url")
                         }
                     } else {
                         Log.e(
                             "PayStackPaymentViewModel",
-                            "Failed to fetch authorization URL. Response code: ${response.code}"
+                            "Failed to fetch authorization URL. Response code: ${response.code}; body=$responseBody"
                         )
                         _authorizationResult.value =
-                            AuthorizationResult.Error("Failed to fetch authorization URL. Response code: ${response.code}")
+                            AuthorizationResult.Error(
+                                "Failed to fetch authorization URL. Response code: ${response.code}. $responseBody"
+                            )
+                        setFailure("Failed to fetch authorization URL. Response code: ${response.code}")
                         Log.d(
                             "PayStackPaymentViewModel",
                             "Authorization result set to error: Failed to fetch authorization URL. Response code: ${response.code}"
@@ -79,10 +109,12 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
             } catch (e: IOException) {
                 Log.e("PayStackPaymentViewModel", "Network error: ${e.message}")
                 _authorizationResult.value = AuthorizationResult.Error("Network error: ${e.message}")
+                setFailure("Network error: ${e.message}")
                 Log.d("PayStackPaymentViewModel", "Authorization result set to error: Network error: ${e.message}")
             } catch (e: Exception) {
                 Log.e("PayStackPaymentViewModel", "Error fetching authorization URL: ${e.message}")
                 _authorizationResult.value = AuthorizationResult.Error("Error fetching authorization URL: ${e.message}")
+                setFailure(e.message)
                 Log.d(
                     "PayStackPaymentViewModel",
                     "Authorization result set to error: Error fetching authorization URL: ${e.message}"
@@ -128,22 +160,26 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
     }
 
     suspend fun verifyTransaction() {
+        setLoading()
         _verificationResult.value = VerificationResult.Loading
         Log.d("PayStackPaymentViewModel", "Verifying transaction with reference: $transactionReference")
         return withContext(Dispatchers.IO) {
-            val url = "https://api.paystack.co/transaction/verify/$transactionReference"
-            val client = OkHttpClient()
+            val reference = transactionReference?.trim().orEmpty()
+            if (reference.isBlank()) {
+                _verificationResult.value = VerificationResult.Error("Missing transaction reference.")
+                setFailure("Missing transaction reference.")
+                return@withContext
+            }
 
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer sk_test_9391f4990ba13feeb62f9b0ae25ec9d6dd72ebe1")
-                .build()
+            val verifyUrl = functionUrl(paystackVerifyPath)
+            val payload = buildJsonObject { put("reference", reference) }.toString()
+            val request = supabasePostRequest(verifyUrl, payload)
 
             try {
                 client.newCall(request).execute().use { response ->
+                    val responseBody = response.body?.string().orEmpty()
                     if (response.isSuccessful) {
-                        val responseBody = response.body?.string()
-                        val jsonObject = Json.parseToJsonElement(responseBody ?: "").jsonObject
+                        val jsonObject = Json.parseToJsonElement(responseBody).jsonObject
                         val status = jsonObject["status"]?.jsonPrimitive?.boolean ?: false
                         val data = jsonObject["data"]?.jsonObject
 
@@ -198,10 +234,13 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
 
                             Log.d("Paystack viewModel: ", " Transaction status: $transactionStatus")
                             if (transactionStatus == "success") {
+                                _latestVerifiedTransaction.value = transaction
                                 _verificationResult.value = VerificationResult.Success
+                                setSuccess()
                                 Log.d("PayStackPaymentViewModel", "Verification result set to success")
                             } else {
                                 _verificationResult.value = VerificationResult.Error("Payment was unsuccessful")
+                                setFailure("Payment was unsuccessful")
                                 Log.d(
                                     "PayStackPaymentViewModel",
                                     "Verification result set to error: Payment was unsuccessful"
@@ -212,6 +251,7 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
                             withContext(Dispatchers.Main) {
                                 _verificationResult.value =
                                     VerificationResult.Error("Transaction verification failed. Status: $status")
+                                setFailure("Transaction verification failed.")
                                 Log.d(
                                     "PayStackPaymentViewModel",
                                     "Verification result set to error: Transaction verification failed. Status: $status"
@@ -221,11 +261,14 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
                     } else {
                         Log.e(
                             "PayStackPaymentViewModel",
-                            "Failed to fetch verification details. Response code: ${response.code}"
+                            "Failed to fetch verification details. Response code: ${response.code}; body=$responseBody"
                         )
                         withContext(Dispatchers.Main) {
                             _verificationResult.value =
-                                VerificationResult.Error("Failed to fetch verification details. Response code: ${response.code}")
+                                VerificationResult.Error(
+                                    "Failed to fetch verification details. Response code: ${response.code}. $responseBody"
+                                )
+                            setFailure("Failed to fetch verification details. Response code: ${response.code}")
                             Log.d(
                                 "PayStackPaymentViewModel",
                                 "Verification result set to error: Failed to fetch verification details. Response code: ${response.code}"
@@ -237,6 +280,7 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
                 Log.e("PayStackPaymentViewModel", "Network error: ${e.message}")
                 withContext(Dispatchers.Main) {
                     _verificationResult.value = VerificationResult.Error("Network error: ${e.message}")
+                    setFailure("Network error: ${e.message}")
                     Log.d("PayStackPaymentViewModel", "Verification result set to error: Network error: ${e.message}")
                 }
             } catch (e: Exception) {
@@ -244,6 +288,7 @@ class PayStackPaymentViewModel(application: Application) : AndroidViewModel(appl
                 withContext(Dispatchers.Main) {
                     _verificationResult.value =
                         VerificationResult.Error("Error fetching verification details: ${e.message}")
+                    setFailure(e.message)
                     Log.d(
                         "PayStackPaymentViewModel",
                         "Verification result set to error: Error fetching verification details: ${e.message}"

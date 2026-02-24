@@ -2,6 +2,19 @@ package com.example.eventglow.dataClass
 
 data class BoughtTicket(
     val transactionReference: String? = "",
+    val paymentProvider: String = "",
+    val paymentStatus: String = "",
+    val paymentGatewayResponse: String = "",
+    val paymentAmount: String = "",
+    val paymentCurrency: String = "",
+    val paymentChannel: String = "",
+    val paymentAuthorizationCode: String = "",
+    val paymentCardType: String = "",
+    val paymentBank: String = "",
+    val paymentCustomerEmail: String = "",
+    val paymentPaidAt: String = "",
+    val paymentCreatedAt: String = "",
+    val isFreeTicket: Boolean = false,
     val eventOrganizer: String = "",
     val eventId: String = "",
     val eventName: String = "",
@@ -10,5 +23,10 @@ data class BoughtTicket(
     val endDate: String = "",
     val imageUrl: String? = null,
     val ticketName: String = "",
-    val ticketPrice: String = ""
+    val ticketPrice: String = "",
+    val qrCodeData: String = "",
+    val isScanned: Boolean = false,
+    val scannedAt: String = "",
+    val scannedByAdminId: String = "",
+    val scannedByAdminName: String = ""
 )

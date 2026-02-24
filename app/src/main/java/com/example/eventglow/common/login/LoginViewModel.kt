@@ -157,6 +157,19 @@ private fun mapListToEvents(value: Any?): List<Event> {
 private fun Map<*, *>.toBoughtTicket(): BoughtTicket {
     return BoughtTicket(
         transactionReference = this["transactionReference"] as? String,
+        paymentProvider = this["paymentProvider"] as? String ?: "",
+        paymentStatus = this["paymentStatus"] as? String ?: "",
+        paymentGatewayResponse = this["paymentGatewayResponse"] as? String ?: "",
+        paymentAmount = this["paymentAmount"] as? String ?: "",
+        paymentCurrency = this["paymentCurrency"] as? String ?: "",
+        paymentChannel = this["paymentChannel"] as? String ?: "",
+        paymentAuthorizationCode = this["paymentAuthorizationCode"] as? String ?: "",
+        paymentCardType = this["paymentCardType"] as? String ?: "",
+        paymentBank = this["paymentBank"] as? String ?: "",
+        paymentCustomerEmail = this["paymentCustomerEmail"] as? String ?: "",
+        paymentPaidAt = this["paymentPaidAt"] as? String ?: "",
+        paymentCreatedAt = this["paymentCreatedAt"] as? String ?: "",
+        isFreeTicket = this["isFreeTicket"] as? Boolean ?: false,
         eventOrganizer = this["eventOrganizer"] as? String ?: "",
         eventId = this["eventId"] as? String ?: "",
         eventName = this["eventName"] as? String ?: "",
@@ -165,7 +178,12 @@ private fun Map<*, *>.toBoughtTicket(): BoughtTicket {
         endDate = this["endDate"] as? String ?: "",
         imageUrl = this["imageUrl"] as? String,
         ticketName = this["ticketName"] as? String ?: "",
-        ticketPrice = this["ticketPrice"] as? String ?: ""
+        ticketPrice = this["ticketPrice"] as? String ?: "",
+        qrCodeData = this["qrCodeData"] as? String ?: "",
+        isScanned = this["isScanned"] as? Boolean ?: false,
+        scannedAt = this["scannedAt"] as? String ?: "",
+        scannedByAdminId = this["scannedByAdminId"] as? String ?: "",
+        scannedByAdminName = this["scannedByAdminName"] as? String ?: ""
     )
 }
 

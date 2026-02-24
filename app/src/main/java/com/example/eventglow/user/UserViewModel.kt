@@ -9,7 +9,6 @@ import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
 import com.example.eventglow.dataClass.User
 import com.example.eventglow.dataClass.UserPreferences
-import com.example.eventts.dataClass.FilterCriteria
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -279,36 +278,36 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         Log.d("UserViewModel", "Has user bought ticket for event $eventId: $hasTicket")
         return hasTicket
     }
-
-    fun filterEventsAdvancedMatchAllCriteria(criteria: FilterCriteria) {
-        val filteredList = _events.value.filter { event ->
-            (criteria.status.isEmpty() || event.eventStatus == criteria.status) &&
-                    (criteria.categories.isEmpty() || criteria.categories.contains(event.eventCategory)) &&
-                    (criteria.startDate.isEmpty() || event.startDate >= criteria.startDate) &&
-                    (criteria.endDate.isEmpty() || event.endDate <= criteria.endDate)
-        }
-
-        sharedPreferences.keepFilteredEventsInSharedPref(filteredList)
-        Log.d(
-            "UserViewModel",
-            "Advanced match all criteria filter applied. ${filteredList.size} events found and saved to SharedPreferences."
-        )
-    }
-
-    fun filterEventsAdvancedDontMatchAllCriteria(criteria: FilterCriteria) {
-        val filteredList = _events.value.filter { event ->
-            (criteria.status.isNotEmpty() && event.eventStatus == criteria.status) ||
-                    (criteria.categories.isNotEmpty() && criteria.categories.contains(event.eventCategory)) ||
-                    (criteria.startDate.isNotEmpty() && event.startDate >= criteria.startDate) ||
-                    (criteria.endDate.isNotEmpty() && event.endDate <= criteria.endDate)
-        }
-
-        sharedPreferences.keepFilteredEventsInSharedPref(filteredList)
-        Log.d(
-            "UserViewModel",
-            "Advanced don't match all criteria filter applied. ${filteredList.size} events found and saved to SharedPreferences."
-        )
-    }
+//
+//    fun filterEventsAdvancedMatchAllCriteria(criteria: FilterCriteria) {
+//        val filteredList = _events.value.filter { event ->
+//            (criteria.status.isEmpty() || event.eventStatus == criteria.status) &&
+//                    (criteria.categories.isEmpty() || criteria.categories.contains(event.eventCategory)) &&
+//                    (criteria.startDate.isEmpty() || event.startDate >= criteria.startDate) &&
+//                    (criteria.endDate.isEmpty() || event.endDate <= criteria.endDate)
+//        }
+//
+//        sharedPreferences.keepFilteredEventsInSharedPref(filteredList)
+//        Log.d(
+//            "UserViewModel",
+//            "Advanced match all criteria filter applied. ${filteredList.size} events found and saved to SharedPreferences."
+//        )
+//    }
+//
+//    fun filterEventsAdvancedDontMatchAllCriteria(criteria: FilterCriteria) {
+//        val filteredList = _events.value.filter { event ->
+//            (criteria.status.isNotEmpty() && event.eventStatus == criteria.status) ||
+//                    (criteria.categories.isNotEmpty() && criteria.categories.contains(event.eventCategory)) ||
+//                    (criteria.startDate.isNotEmpty() && event.startDate >= criteria.startDate) ||
+//                    (criteria.endDate.isNotEmpty() && event.endDate <= criteria.endDate)
+//        }
+//
+//        sharedPreferences.keepFilteredEventsInSharedPref(filteredList)
+//        Log.d(
+//            "UserViewModel",
+//            "Advanced don't match all criteria filter applied. ${filteredList.size} events found and saved to SharedPreferences."
+//        )
+//    }
 
     fun addFavoriteEventToFireStore(event: Event) {
         viewModelScope.launch {
@@ -538,6 +537,19 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                 val existingTickets = (userData["boughtTickets"] as? List<Map<String, Any>>)?.map {
                     BoughtTicket(
                         transactionReference = it["transactionReference"] as? String ?: "",
+                        paymentProvider = it["paymentProvider"] as? String ?: "",
+                        paymentStatus = it["paymentStatus"] as? String ?: "",
+                        paymentGatewayResponse = it["paymentGatewayResponse"] as? String ?: "",
+                        paymentAmount = it["paymentAmount"] as? String ?: "",
+                        paymentCurrency = it["paymentCurrency"] as? String ?: "",
+                        paymentChannel = it["paymentChannel"] as? String ?: "",
+                        paymentAuthorizationCode = it["paymentAuthorizationCode"] as? String ?: "",
+                        paymentCardType = it["paymentCardType"] as? String ?: "",
+                        paymentBank = it["paymentBank"] as? String ?: "",
+                        paymentCustomerEmail = it["paymentCustomerEmail"] as? String ?: "",
+                        paymentPaidAt = it["paymentPaidAt"] as? String ?: "",
+                        paymentCreatedAt = it["paymentCreatedAt"] as? String ?: "",
+                        isFreeTicket = it["isFreeTicket"] as? Boolean ?: false,
                         eventOrganizer = it["eventOrganizer"] as? String ?: "",
                         eventId = it["eventId"] as? String ?: "",
                         eventName = it["eventName"] as? String ?: "",
@@ -546,7 +558,12 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                         endDate = it["endDate"] as? String ?: "",
                         imageUrl = it["imageUrl"] as? String ?: "",
                         ticketName = it["ticketName"] as? String ?: "",
-                        ticketPrice = it["ticketPrice"] as? String ?: ""
+                        ticketPrice = it["ticketPrice"] as? String ?: "",
+                        qrCodeData = it["qrCodeData"] as? String ?: "",
+                        isScanned = it["isScanned"] as? Boolean ?: false,
+                        scannedAt = it["scannedAt"] as? String ?: "",
+                        scannedByAdminId = it["scannedByAdminId"] as? String ?: "",
+                        scannedByAdminName = it["scannedByAdminName"] as? String ?: ""
                     )
                 }?.toMutableList() ?: mutableListOf()
 
@@ -556,6 +573,19 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                 userDocRef.update("boughtTickets", existingTickets.map {
                     mapOf(
                         "transactionReference" to it.transactionReference,
+                        "paymentProvider" to it.paymentProvider,
+                        "paymentStatus" to it.paymentStatus,
+                        "paymentGatewayResponse" to it.paymentGatewayResponse,
+                        "paymentAmount" to it.paymentAmount,
+                        "paymentCurrency" to it.paymentCurrency,
+                        "paymentChannel" to it.paymentChannel,
+                        "paymentAuthorizationCode" to it.paymentAuthorizationCode,
+                        "paymentCardType" to it.paymentCardType,
+                        "paymentBank" to it.paymentBank,
+                        "paymentCustomerEmail" to it.paymentCustomerEmail,
+                        "paymentPaidAt" to it.paymentPaidAt,
+                        "paymentCreatedAt" to it.paymentCreatedAt,
+                        "isFreeTicket" to it.isFreeTicket,
                         "eventOrganizer" to it.eventOrganizer,
                         "eventId" to it.eventId,
                         "eventName" to it.eventName,
@@ -564,7 +594,12 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                         "endDate" to it.endDate,
                         "imageUrl" to it.imageUrl,
                         "ticketName" to it.ticketName,
-                        "ticketPrice" to it.ticketPrice
+                        "ticketPrice" to it.ticketPrice,
+                        "qrCodeData" to it.qrCodeData,
+                        "isScanned" to it.isScanned,
+                        "scannedAt" to it.scannedAt,
+                        "scannedByAdminId" to it.scannedByAdminId,
+                        "scannedByAdminName" to it.scannedByAdminName
                     )
                 }).await()
                 Log.d("UserViewModel", "Successfully updated Firestore with bought tickets.")

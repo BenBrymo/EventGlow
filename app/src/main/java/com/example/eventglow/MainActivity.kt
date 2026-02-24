@@ -31,6 +31,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.dataClass.UserPreferences
@@ -136,6 +137,37 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MyApp() {
     val navController = rememberNavController()
+    val sharedPreferencesViewModel: SharedPreferencesViewModel = viewModel()
+    val userData by sharedPreferencesViewModel.userInfo.collectAsState()
+    val role = userData["ROLE"]?.trim()?.lowercase().orEmpty()
+    val pendingDeepLink by NotificationDeepLinkStore.pendingDeepLink.collectAsState()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+
+    LaunchedEffect(pendingDeepLink, role, currentRoute) {
+        val deepLink = pendingDeepLink ?: return@LaunchedEffect
+        if (currentRoute == Routes.SPLASH_SCREEN) return@LaunchedEffect
+        if (role != "admin" && role != "user") return@LaunchedEffect
+
+        if (role == "admin") {
+            if ((deepLink.route == ROUTE_DETAILED_EVENT_SCREEN_ADMIN ||
+                        deepLink.route == ROUTE_DETAILED_EVENT_SCREEN) &&
+                !deepLink.eventId.isNullOrBlank()
+            ) {
+                navController.navigateAndClearTo(Routes.ADMIN_MAIN_SCREEN)
+                navController.navigate("${ROUTE_DETAILED_EVENT_SCREEN_ADMIN}/${deepLink.eventId}")
+            } else {
+                navController.navigateAndClearTo(Routes.ADMIN_MAIN_SCREEN)
+            }
+        } else {
+            if (deepLink.route == ROUTE_DETAILED_EVENT_SCREEN && !deepLink.eventId.isNullOrBlank()) {
+                navController.navigateAndClearTo("${Routes.USER_MAIN_SCREEN}?eventId=${deepLink.eventId}")
+            } else {
+                navController.navigateAndClearTo(Routes.USER_MAIN_SCREEN)
+            }
+        }
+        NotificationDeepLinkStore.consume()
+    }
 
     NavGraph(navController = navController)
 }
@@ -143,7 +175,6 @@ fun MyApp() {
 
 @Composable
 fun SplashScreen(
-    modifier: Modifier = Modifier,
     navController: NavController,
     viewModel: MainActivityViewModel = viewModel(),
     sharedPreferencesViewModel: SharedPreferencesViewModel = viewModel()

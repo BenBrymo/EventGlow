@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.eventglow.events_management.EventsManagementViewModel
 import com.example.eventglow.ui.theme.Divider
 import kotlinx.coroutines.launch
@@ -62,6 +65,7 @@ fun NotificationsScreen(
     var eventSearchQuery by remember { mutableStateOf("") }
     var selectedEventId by remember { mutableStateOf<String?>(null) }
     var selectedEventName by remember { mutableStateOf<String?>(null) }
+    var selectedEventImageUrl by remember { mutableStateOf<String?>(null) }
 
     val matchingEvents = remember(events, eventSearchQuery) {
         val query = eventSearchQuery.trim()
@@ -140,6 +144,7 @@ fun NotificationsScreen(
                             notificationType = "general"
                             selectedEventId = null
                             selectedEventName = null
+                            selectedEventImageUrl = null
                         },
                         label = { Text("General") }
                     )
@@ -162,10 +167,31 @@ fun NotificationsScreen(
                 }
                 if (!selectedEventId.isNullOrBlank()) {
                     item {
-                        AssistChip(
-                            onClick = { },
-                            label = { Text("Selected: ${selectedEventName ?: selectedEventId}") }
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            AssistChip(
+                                onClick = { },
+                                leadingIcon = {
+                                    AsyncImage(
+                                        model = selectedEventImageUrl,
+                                        contentDescription = "Selected event image",
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                },
+                                label = { Text("Selected: ${selectedEventName ?: selectedEventId}") }
+                            )
+                            IconButton(
+                                onClick = {
+                                    selectedEventId = null
+                                    selectedEventName = null
+                                    selectedEventImageUrl = null
+                                }
+                            ) {
+                                Icon(Icons.Default.Clear, contentDescription = "Deselect event")
+                            }
+                        }
                     }
                 }
                 items(matchingEvents) { event ->
@@ -175,11 +201,21 @@ fun NotificationsScreen(
                             .clickable {
                                 selectedEventId = event.id
                                 selectedEventName = event.eventName
+                                selectedEventImageUrl = event.imageUri
                             }
                             .padding(vertical = 8.dp)
                     ) {
-                        Text(text = event.eventName, style = MaterialTheme.typography.bodyLarge)
-                        Text(text = event.id, style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            AsyncImage(
+                                model = event.imageUri,
+                                contentDescription = "Event image",
+                                modifier = Modifier.size(52.dp)
+                            )
+                            Column {
+                                Text(text = event.eventName, style = MaterialTheme.typography.bodyLarge)
+                                Text(text = event.id, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                     }
                     Divider(color = Divider)
                 }
@@ -189,6 +225,10 @@ fun NotificationsScreen(
                 TextButton(
                     enabled = !isSending,
                     onClick = {
+                        if (notificationType == "event" && selectedEventId.isNullOrBlank()) {
+                            scope.launch { snackbarHostState.showSnackbar("Please select an event.") }
+                            return@TextButton
+                        }
                         val route = if (notificationType == "event") {
                             ROUTE_DETAILED_EVENT_SCREEN
                         } else {

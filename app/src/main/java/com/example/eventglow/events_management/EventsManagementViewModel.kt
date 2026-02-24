@@ -9,6 +9,7 @@ import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.EventCategory
 import com.example.eventglow.dataClass.TicketType
+import com.example.eventts.dataClass.EventFilterCriteria
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -146,34 +147,76 @@ class EventsManagementViewModel : ViewModel() {
     }
 
     fun filterEventsAdvanced(
+        criteria: EventFilterCriteria
+    ) {
+        Log.d("FilterEvents", "Criteria: $criteria")
+        val filteredListAdvanced = _events.value.filter { event ->
+            matchesCriteria(event, criteria)
+        }
+        Log.d("FilterEvents", "Filtered Events Count: ${filteredListAdvanced.size}")
+        _filteredEventsAdvanced.value = filteredListAdvanced
+        Log.d("FilterEvents", "Filtered Events in state: ${_filteredEventsAdvanced.value.size}")
+    }
+
+    fun filterEventsAdvanced(
         eventStatus: String,
         eventCategories: List<String>,
         eventStartDate: String,
         eventEndDate: String,
         matchAllCriteria: Boolean
     ) {
-        // Log the filtering criteria
-        Log.d(
-            "FilterEvents",
-            "Filter Criteria - Status: $eventStatus, Categories: $eventCategories, Start Date: $eventStartDate, End Date: $eventEndDate, Match All: $matchAllCriteria"
+        filterEventsAdvanced(
+            EventFilterCriteria(
+                eventStatus = eventStatus,
+                eventCategories = eventCategories,
+                eventStartDate = eventStartDate,
+                eventEndDate = eventEndDate,
+                matchAllCriteria = matchAllCriteria
+            )
         )
+    }
 
-        val filteredListAdvanced = _events.value.filter { event ->
-            val matchesStatus = eventStatus.isEmpty() || event.eventStatus == eventStatus
-            val matchesCategory = eventCategories.isEmpty() || eventCategories.contains(event.eventCategory)
-            val matchesStartDate = eventStartDate.isEmpty() || event.startDate == eventStartDate
-            val matchesEndDate = eventEndDate.isEmpty() || event.endDate == eventEndDate
+    private fun matchesCriteria(event: Event, criteria: EventFilterCriteria): Boolean {
+        val normalizedStatus = criteria.eventStatus.trim()
+        val normalizedCategories = criteria.eventCategories
+            .map { it.trim().lowercase(Locale.getDefault()) }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val normalizedStartDate = criteria.eventStartDate.trim()
+        val normalizedEndDate = criteria.eventEndDate.trim()
 
-            val matchesAll = matchesStatus && matchesCategory && matchesStartDate && matchesEndDate
-            val matchesAny = matchesStatus || matchesCategory || matchesStartDate || matchesEndDate
+        val hasStatusFilter = normalizedStatus.isNotBlank()
+        val hasCategoryFilter = normalizedCategories.isNotEmpty()
+        val hasStartDateFilter = normalizedStartDate.isNotBlank()
+        val hasEndDateFilter = normalizedEndDate.isNotBlank()
 
-            if (matchAllCriteria) matchesAll else matchesAny
+        val activeFiltersCount = listOf(
+            hasStatusFilter,
+            hasCategoryFilter,
+            hasStartDateFilter,
+            hasEndDateFilter
+        ).count { it }
+        if (activeFiltersCount == 0) return true
+
+        val eventStatusMatch = !hasStatusFilter ||
+                event.eventStatus.trim().equals(normalizedStatus, ignoreCase = true)
+        val eventCategoryMatch = !hasCategoryFilter ||
+                normalizedCategories.contains(event.eventCategory.trim().lowercase(Locale.getDefault()))
+        val eventStartDateMatch = !hasStartDateFilter ||
+                event.startDate.trim() == normalizedStartDate
+        val eventEndDateMatch = !hasEndDateFilter ||
+                event.endDate.trim() == normalizedEndDate
+
+        return if (criteria.matchAllCriteria) {
+            eventStatusMatch && eventCategoryMatch && eventStartDateMatch && eventEndDateMatch
+        } else {
+            val matches = mutableListOf<Boolean>()
+            if (hasStatusFilter) matches += eventStatusMatch
+            if (hasCategoryFilter) matches += eventCategoryMatch
+            if (hasStartDateFilter) matches += eventStartDateMatch
+            if (hasEndDateFilter) matches += eventEndDateMatch
+            matches.any { it }
         }
-
-        // Log the filtered results
-        Log.d("FilterEvents", "Filtered Events Count: ${filteredListAdvanced.size}")
-        _filteredEventsAdvanced.value = filteredListAdvanced
-        Log.d("FilterEvents", "Filtered Events in count in filteredEvent state: ${_filteredEventsAdvanced.value.size}")
     }
 
     fun fetchEvents() {
@@ -441,41 +484,7 @@ class EventsManagementViewModel : ViewModel() {
         }
     }
 
-    suspend fun checkIfTimeIsTaken(eventName: String, onResult: (Boolean) -> Unit) {
-        try {
-            val firestore = FirebaseFirestore.getInstance()
-
-            //retrives users collection
-            firestore.collection("events")
-
-                //only get documents that match the username entered by user
-                .whereEqualTo("eventName", eventName)
-                .get()
-
-                //listen for completion response
-                .addOnCompleteListener { task ->
-
-                    //if documents are fetched succesfully
-                    if (task.isSuccessful) {
-
-                        //get returned results
-                        val documents = task.result
-                        val isTaken = documents != null && !documents.isEmpty // sets is Taken to true
-                        onResult(isTaken)
-                        Log.e("Firestore", "Is Event name taken : $isTaken")
-                    } else {
-                        Log.e("Firestore", "Error checking event name: ${task.exception?.message}")
-                        onResult(false) // Assume the username is not taken if there's an error
-                    }
-                }
-
-        } catch (e: Exception) {
-            Log.e("Firestore", "Exception checking username: ${e.message}")
-            onResult(false) // Assume the username is not taken if there's an exception
-        }
-    }
-
-    suspend fun checkIfDateRangeExists(startDate: String, endDate: String, onResult: (Boolean) -> Unit) {
+    fun checkIfDateRangeExists(startDate: String, endDate: String, onResult: (Boolean) -> Unit) {
         try {
             val firestore = FirebaseFirestore.getInstance()
 
@@ -747,10 +756,6 @@ class EventsManagementViewModel : ViewModel() {
             }
     }
 
-    fun copyEvent(event: Event) {
-        val newEvent = event.copy(id = "")
-        addEvent(newEvent)
-    }
 }
 
 private fun getErrorMessage(exception: Exception?): String {

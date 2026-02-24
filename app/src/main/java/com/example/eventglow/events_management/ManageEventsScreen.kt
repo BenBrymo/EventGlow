@@ -11,6 +11,7 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,6 +57,7 @@ fun ManageEventsScreen(
         }
     }
 ) {
+    val focusManager = LocalFocusManager.current
     val events by viewModel.events.collectAsState()
     val fetchState by viewModel.fetchEventsState.collectAsState()
     val isRefreshing = fetchState is FetchEventsState.Loading
@@ -114,6 +117,10 @@ fun ManageEventsScreen(
                 value = search,
                 onValueChange = {
                     search = it
+                },
+                onFilterClick = {
+                    focusManager.clearFocus(force = true)
+                    navController.navigate(Routes.FILTER_SEARCH_SCREEN_ADMIN)
                 }
             )
 
@@ -178,11 +185,13 @@ fun ManageEventsScreen(
                                 }
                             } else {
                                 LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
                                     contentPadding = PaddingValues(horizontal = 16.dp),
                                     verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
                                     items(filteredEvents, key = { it.id }) { event ->
                                         ManageEventCard(event) {
+                                            focusManager.clearFocus(force = true)
                                             onEventClick(event)
                                         }
                                     }
@@ -224,7 +233,8 @@ fun ManageEventsHeader(onBackClick: () -> Unit) {
 @Composable
 fun SearchBar(
     value: String,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    onFilterClick: () -> Unit
 ) {
 
     OutlinedTextField(
@@ -235,6 +245,11 @@ fun SearchBar(
         },
         leadingIcon = {
             Icon(Icons.Default.Search, null, tint = TextSecondary)
+        },
+        trailingIcon = {
+            IconButton(onClick = onFilterClick) {
+                Icon(Icons.Default.FilterList, contentDescription = "Filter events", tint = TextSecondary)
+            }
         },
         singleLine = true,
         shape = RoundedCornerShape(30.dp),
@@ -367,4 +382,3 @@ fun ManageEventCardPreview() {
 fun StatusBadgePreview() {
     StatusBadge(status = "Upcoming")
 }
-

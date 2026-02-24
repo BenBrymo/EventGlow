@@ -417,11 +417,6 @@ private fun AddUserTextField(
 }
 
 
-data class UserUi(
-    val name: String,
-    val role: String
-)
-
 @Composable
 private fun SearchUsersField(
     value: String,

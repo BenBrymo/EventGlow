@@ -200,6 +200,19 @@ class UserManagementViewModel : ViewModel() {
         val boughtTickets = (data["boughtTickets"] as? List<Map<String, Any>>).orEmpty().map { ticket ->
             BoughtTicket(
                 transactionReference = ticket["transactionReference"] as? String ?: "",
+                paymentProvider = ticket["paymentProvider"] as? String ?: "",
+                paymentStatus = ticket["paymentStatus"] as? String ?: "",
+                paymentGatewayResponse = ticket["paymentGatewayResponse"] as? String ?: "",
+                paymentAmount = ticket["paymentAmount"] as? String ?: "",
+                paymentCurrency = ticket["paymentCurrency"] as? String ?: "",
+                paymentChannel = ticket["paymentChannel"] as? String ?: "",
+                paymentAuthorizationCode = ticket["paymentAuthorizationCode"] as? String ?: "",
+                paymentCardType = ticket["paymentCardType"] as? String ?: "",
+                paymentBank = ticket["paymentBank"] as? String ?: "",
+                paymentCustomerEmail = ticket["paymentCustomerEmail"] as? String ?: "",
+                paymentPaidAt = ticket["paymentPaidAt"] as? String ?: "",
+                paymentCreatedAt = ticket["paymentCreatedAt"] as? String ?: "",
+                isFreeTicket = ticket["isFreeTicket"] as? Boolean ?: false,
                 eventOrganizer = ticket["eventOrganizer"] as? String ?: "",
                 eventId = ticket["eventId"] as? String ?: "",
                 eventName = ticket["eventName"] as? String ?: "",
@@ -208,7 +221,12 @@ class UserManagementViewModel : ViewModel() {
                 endDate = ticket["endDate"] as? String ?: "",
                 imageUrl = ticket["imageUrl"] as? String,
                 ticketName = ticket["ticketName"] as? String ?: "",
-                ticketPrice = ticket["ticketPrice"] as? String ?: ""
+                ticketPrice = ticket["ticketPrice"] as? String ?: "",
+                qrCodeData = ticket["qrCodeData"] as? String ?: "",
+                isScanned = ticket["isScanned"] as? Boolean ?: false,
+                scannedAt = ticket["scannedAt"] as? String ?: "",
+                scannedByAdminId = ticket["scannedByAdminId"] as? String ?: "",
+                scannedByAdminName = ticket["scannedByAdminName"] as? String ?: ""
             )
         }
 

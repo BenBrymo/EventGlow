@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.create-user-admin]
 verify_jwt = false
+
+[functions.paystack-init]
+verify_jwt = false
+
+[functions.paystack-verify]
+verify_jwt = false

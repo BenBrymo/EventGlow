@@ -16,6 +16,10 @@ val supabaseFunctionsPushPath =
     (project.findProperty("SUPABASE_FUNCTIONS_PUSH_PATH") as? String)?.trim().orEmpty()
 val supabaseFunctionsCreateUserPath =
     (project.findProperty("SUPABASE_FUNCTIONS_CREATE_USER_PATH") as? String)?.trim().orEmpty()
+val supabaseFunctionsPaystackInitPath =
+    (project.findProperty("SUPABASE_FUNCTIONS_PAYSTACK_INIT_PATH") as? String)?.trim().orEmpty()
+val supabaseFunctionsPaystackVerifyPath =
+    (project.findProperty("SUPABASE_FUNCTIONS_PAYSTACK_VERIFY_PATH") as? String)?.trim().orEmpty()
 
 android {
     namespace = "com.example.eventglow"
@@ -36,6 +40,16 @@ android {
             "String",
             "SUPABASE_FUNCTIONS_CREATE_USER_PATH",
             supabaseFunctionsCreateUserPath.toBuildConfigString()
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_FUNCTIONS_PAYSTACK_INIT_PATH",
+            supabaseFunctionsPaystackInitPath.toBuildConfigString()
+        )
+        buildConfigField(
+            "String",
+            "SUPABASE_FUNCTIONS_PAYSTACK_VERIFY_PATH",
+            supabaseFunctionsPaystackVerifyPath.toBuildConfigString()
         )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -124,6 +138,7 @@ dependencies {
 
     // Media
     implementation(libs.media3.common)
+    implementation(libs.play.services.code.scanner)
 
     // Tests
     testImplementation(libs.junit)

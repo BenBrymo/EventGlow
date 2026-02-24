@@ -2,6 +2,8 @@ package com.example.eventglow.notifications
 
 import android.content.Intent
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 data class NotificationDeepLink(
     val route: String,
@@ -13,6 +15,7 @@ object NotificationDeepLinkStore {
     const val EXTRA_EVENT_ID = "deep_link_event_id"
 
     private val _pendingDeepLink = MutableStateFlow<NotificationDeepLink?>(null)
+    val pendingDeepLink: StateFlow<NotificationDeepLink?> = _pendingDeepLink.asStateFlow()
 
     fun setFromIntent(intent: Intent?) {
         val route = intent?.getStringExtra(EXTRA_ROUTE)?.trim().orEmpty()

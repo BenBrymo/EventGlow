@@ -37,6 +37,7 @@ import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
+import com.example.eventglow.dataClass.Transaction
 import com.example.eventglow.dataClass.UserPreferences
 import com.example.eventglow.events_management.EventsManagementViewModel
 import com.example.eventglow.navigation.Routes
@@ -49,7 +50,9 @@ import com.example.eventglow.ui.theme.CardGray
 import com.example.eventglow.ui.theme.SurfaceLevel2
 import com.example.eventglow.ui.theme.TextPrimary
 import com.example.eventglow.ui.theme.TextSecondary
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +68,8 @@ fun DetailedEventScreen(
 
     val authorizationResult by paymentViewModel.authorizationResult.collectAsState()
     val verificationResult by paymentViewModel.verificationResult.collectAsState()
+    val paymentErrorMessage by paymentViewModel.errorMessage.collectAsState()
+    val verifiedTransaction by paymentViewModel.latestVerifiedTransaction.collectAsState()
 
     var isLoading by remember { mutableStateOf(false) }
 
@@ -142,6 +147,13 @@ fun DetailedEventScreen(
         }
     }
 
+    LaunchedEffect(paymentErrorMessage) {
+        paymentErrorMessage?.let { error ->
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            paymentViewModel.clearError()
+        }
+    }
+
     LaunchedEffect(verificationResult) {
         scope.launch {
             when (verificationResult) {
@@ -169,23 +181,17 @@ fun DetailedEventScreen(
 
                     val ticketReference = paymentViewModel.transactionReference
                     selectedTicketType?.let { ticketType ->
-                        val boughtTicket = BoughtTicket(
-                            ticketReference,
-                            event.eventOrganizer,
-                            event.id,
-                            event.eventName,
-                            event.startDate,
-                            event.eventStatus,
-                            event.endDate,
-                            event.imageUri,
-                            ticketType.name, // Using selected ticket type
-                            ticketType.price.toString()
+                        val boughtTicket = buildBoughtTicket(
+                            event = event,
+                            ticketType = ticketType,
+                            ticketReference = ticketReference ?: "",
+                            paymentTransaction = verifiedTransaction,
+                            isFreeTicket = false
                         )
 
                         userViewModel.processBoughtTicket(boughtTicket)
                         Log.d("DetailedEventScreen", "Processed bought ticket: $boughtTicket")
-
-                        // Navigate to Tickets Screen with the selected ticket type
+                        showDoneButton = false
                         navController.navigate(Routes.TICKETS_SCREEN)
                     }
                 }
@@ -217,14 +223,56 @@ fun DetailedEventScreen(
         }
     ) { paddingValues ->
         Surface(modifier = Modifier.padding(paddingValues)) {
-            EventDetailsScreen()
-//            DetailedEventContent(
-//                event = event,
-//                showDoneButton = showDoneButton,
-//                hasBoughtTicket = hasBoughtTicket,
-//                chosenTicketType = { ticketType -> selectedTicketType = ticketType }
-//            )
+            DetailedEventContent(
+                event = event,
+                showDoneButton = showDoneButton,
+                hasBoughtTicket = hasBoughtTicket,
+                chosenTicketType = { ticketType -> selectedTicketType = ticketType },
+                onBuyTicketClicked = { ticketType, email ->
+                    scope.launch {
+                        if (hasBoughtTicket) {
+                            Toast.makeText(
+                                context,
+                                "You have already bought a ticket for this event.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@launch
+                        }
 
+                        if (ticketType.price <= 0.0) {
+                            val freeReference = "FREE-${UUID.randomUUID()}"
+                            val freeTicket = buildBoughtTicket(
+                                event = event,
+                                ticketType = ticketType,
+                                ticketReference = freeReference,
+                                paymentTransaction = null,
+                                isFreeTicket = true
+                            )
+                            userViewModel.processBoughtTicket(freeTicket)
+                            navController.navigate(Routes.TICKETS_SCREEN)
+                            return@launch
+                        }
+
+                        if (showDoneButton) {
+                            paymentViewModel.verifyTransaction()
+                        } else {
+                            val safeEmail = email?.trim().orEmpty()
+                            if (safeEmail.isBlank()) {
+                                Toast.makeText(
+                                    context,
+                                    "No account email available for payment.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@launch
+                            }
+                            paymentViewModel.initiatePayment(
+                                email = safeEmail,
+                                amount = ticketType.price.toInt().toString()
+                            )
+                        }
+                    }
+                }
+            )
         }
     }
 
@@ -509,11 +557,11 @@ private fun QuantitySelector(
 @Composable
 fun DetailedEventContent(
     event: Event,
-    paymentViewModel: PayStackPaymentViewModel = viewModel(),
     sharedPreferencesViewModel: SharedPreferencesViewModel = viewModel(),
     showDoneButton: Boolean,
     hasBoughtTicket: Boolean,
     chosenTicketType: (ticketType: TicketType) -> Unit,
+    onBuyTicketClicked: (ticketType: TicketType, email: String?) -> Unit,
     userViewModel: UserViewModel = viewModel(),
     eventsManagementViewModel: EventsManagementViewModel = viewModel(),
     userPreferences: UserPreferences = viewModel()
@@ -529,9 +577,6 @@ fun DetailedEventContent(
 
     val userData by sharedPreferencesViewModel.userInfo.collectAsState()
     val email = userData["USER_EMAIL"]
-
-    val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
 
     var selectedTicketType by remember { mutableStateOf<TicketType?>(null) }
 
@@ -685,23 +730,7 @@ fun DetailedEventContent(
                 if (selectedTicketType != null) {
                     Button(
                         onClick = {
-                            scope.launch {
-                                if (showDoneButton) {
-                                    paymentViewModel.verifyTransaction()
-                                } else {
-                                    if (hasBoughtTicket) {
-                                        snackbarHostState.showSnackbar(
-                                            message = "You have already bought a ticket for this event.",
-                                            duration = SnackbarDuration.Short
-                                        )
-                                    } else {
-                                        paymentViewModel.initiatePayment(
-                                            email = email!!,
-                                            amount = selectedTicketType!!.price.toString()
-                                        )
-                                    }
-                                }
-                            }
+                            onBuyTicketClicked(selectedTicketType!!, email)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -723,11 +752,48 @@ fun DetailedEventContent(
             }
         }
     }
+}
 
-    // Snackbar for showing messages
-    LaunchedEffect(snackbarHostState) {
-        snackbarHostState.currentSnackbarData?.dismiss()
-    }
+private fun buildBoughtTicket(
+    event: Event,
+    ticketType: TicketType,
+    ticketReference: String,
+    paymentTransaction: Transaction?,
+    isFreeTicket: Boolean
+): BoughtTicket {
+    val authUser = FirebaseAuth.getInstance().currentUser
+    val qrData = "eventglow_ticket|$ticketReference|${event.id}|${authUser?.uid.orEmpty()}"
+    return BoughtTicket(
+        transactionReference = ticketReference,
+        paymentProvider = if (isFreeTicket) "free" else "paystack",
+        paymentStatus = if (isFreeTicket) "success" else (paymentTransaction?.status ?: ""),
+        paymentGatewayResponse = if (isFreeTicket) "Free ticket issued" else (paymentTransaction?.gatewayResponse
+            ?: ""),
+        paymentAmount = if (isFreeTicket) "0" else (paymentTransaction?.amount ?: ticketType.price.toString()),
+        paymentCurrency = if (isFreeTicket) "GHS" else (paymentTransaction?.currency ?: "GHS"),
+        paymentChannel = if (isFreeTicket) "free" else (paymentTransaction?.channel ?: ""),
+        paymentAuthorizationCode = paymentTransaction?.authorizationCode ?: "",
+        paymentCardType = paymentTransaction?.cardType ?: "",
+        paymentBank = paymentTransaction?.bank ?: "",
+        paymentCustomerEmail = paymentTransaction?.customerEmail ?: "",
+        paymentPaidAt = paymentTransaction?.paidAt ?: "",
+        paymentCreatedAt = paymentTransaction?.createdAt ?: "",
+        isFreeTicket = isFreeTicket,
+        eventOrganizer = event.eventOrganizer,
+        eventId = event.id,
+        eventName = event.eventName,
+        startDate = event.startDate,
+        eventStatus = event.eventStatus,
+        endDate = event.endDate,
+        imageUrl = event.imageUri,
+        ticketName = ticketType.name,
+        ticketPrice = ticketType.price.toString(),
+        qrCodeData = qrData,
+        isScanned = false,
+        scannedAt = "",
+        scannedByAdminId = "",
+        scannedByAdminName = ""
+    )
 }
 
 @Composable

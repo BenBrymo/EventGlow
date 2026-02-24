@@ -35,7 +35,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -490,13 +489,31 @@ fun CreateEventScreen(
                                                 scope.launch { markEventsUpdatedAndReturn() }
                                                 return@saveEventToFirestore
                                             }
+                                            val fallbackTitle =
+                                                "✨ Fresh on EventGlow: ${eventName.ifBlank { "Untitled Event" }}"
+                                            val fallbackBody = buildString {
+                                                when {
+                                                    startDate.isNotBlank() && eventTime.isNotBlank() ->
+                                                        append("📅 $startDate at $eventTime is set.")
+
+                                                    startDate.isNotBlank() ->
+                                                        append("📅 $startDate is set.")
+
+                                                    eventTime.isNotBlank() ->
+                                                        append("⏰ $eventTime is set.")
+
+                                                    else ->
+                                                        append("It’s officially live.")
+                                                }
+                                                append(" Tap to check it out 🔎")
+                                            }
                                             val notificationTitle = if (useCustomPublishNotification) {
-                                                publishNotificationTitle.trim().ifBlank { "New Event Published" }
+                                                publishNotificationTitle.trim().ifBlank { fallbackTitle }
                                             } else {
                                                 "New Event Published"
                                             }
                                             val notificationBody = if (useCustomPublishNotification) {
-                                                publishNotificationBody.trim().ifBlank { eventName }
+                                                publishNotificationBody.trim().ifBlank { fallbackBody }
                                             } else {
                                                 eventName
                                             }
@@ -548,6 +565,8 @@ fun FinishSection(
     imageUri: Uri?,
     eventOrganizer: String,
     eventDescription: String,
+    showSaveDraftButton: Boolean = true,
+    publishButtonText: String = "Publish",
     onPublishClick: () -> Unit,
     onSaveDraftClick: () -> Unit
 ) {
@@ -673,21 +692,23 @@ fun FinishSection(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Button(
-                    onClick = onSaveDraftClick,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Filled.Save, contentDescription = "Save as Draft")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save")
+                if (showSaveDraftButton) {
+                    Button(
+                        onClick = onSaveDraftClick,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Filled.Save, contentDescription = "Save as Draft")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Save")
+                    }
                 }
                 Button(
                     onClick = onPublishClick,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(if (showSaveDraftButton) 1f else 2f)
                 ) {
                     Icon(Icons.Filled.Publish, contentDescription = "Publish")
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Publish")
+                    Text(publishButtonText)
                 }
             }
         }
@@ -1951,19 +1972,4 @@ private fun EventNotificationSection(
     }
 }
 
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun CreateEventScreenPreview() {
-    EventImageSection(
-        imageUri = null,
-        isUploadingImage = false,
-        onPickImageClick = {},
-        realEventImages = mapOf(
-            "Concerts" to listOf(""),
-            "Conferences" to listOf("")
-        ),
-        onImageSelected = {}
-    )
-}
 
