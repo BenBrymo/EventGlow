@@ -1,32 +1,82 @@
 package com.example.eventglow.user
 
+import android.graphics.Bitmap
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Transaction
 import com.example.eventglow.ticket_management.TicketManagementViewModel
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
+import com.google.zxing.common.BitMatrix
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import android.graphics.Color as AndroidColor
 
+private val DetailBg = Color(0xFF0B1115)
+private val DetailTop = Color(0xFF111A20)
+private val DetailCard = Color(0xFF1A252E)
+private val DetailText = Color(0xFFEAF4FB)
+private val DetailMuted = Color(0xFF9FB2C1)
+private val DetailAccent = Color(0xFF1ED760)
+private val DetailDanger = Color(0xFFFF5A5F)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,140 +86,215 @@ fun TicketDetailScreen(
     ticketManagementViewModel: TicketManagementViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel()
 ) {
-
-    val ticket = userViewModel.getBoughtTicketByReference(transactionReference)
-    Log.d("TicketDetailScreen", "Ticket fetched: $ticket")
+    val boughtTickets by userViewModel.boughtTickets.collectAsState()
+    val isLoading by userViewModel.isLoading.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var transaction by remember { mutableStateOf<Transaction?>(null) }
+    var isTransactionLoading by remember { mutableStateOf(false) }
+    var transactionError by remember { mutableStateOf<String?>(null) }
 
-    val scope = rememberCoroutineScope()
+    val ticket = boughtTickets.find { it.transactionReference == transactionReference }
+    val qrBitmap = remember(ticket?.qrCodeData) { generateQrBitmap(ticket?.qrCodeData.orEmpty(), 640) }
 
-    LaunchedEffect(Unit) {
-        if (ticket != null) {
-            scope.launch { transaction = ticketManagementViewModel.getTransactionByReference(transactionReference) }
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("image/png")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val bitmap = qrBitmap
+        if (bitmap == null) {
+            scope.launch { snackbarHostState.showSnackbar("QR code is not available.") }
+            return@rememberLauncherForActivityResult
+        }
+
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { stream ->
+                val bytes = bitmap.toPngBytes()
+                stream.write(bytes)
+                stream.flush()
+            } ?: error("Could not open output stream.")
+        }.onSuccess {
+            scope.launch { snackbarHostState.showSnackbar("QR code downloaded successfully.") }
+        }.onFailure { error ->
+            scope.launch { snackbarHostState.showSnackbar("Download failed: ${error.message.orEmpty()}") }
         }
     }
 
+    LaunchedEffect(transactionReference) {
+        userViewModel.fetchBoughtTickets()
+    }
+
+    LaunchedEffect(ticket?.transactionReference) {
+        if (ticket?.transactionReference.isNullOrBlank()) return@LaunchedEffect
+        isTransactionLoading = true
+        transactionError = null
+        transaction = null
+        runCatching {
+            ticketManagementViewModel.getTransactionByReference(ticket!!.transactionReference.orEmpty())
+        }.onSuccess {
+            transaction = it
+        }.onFailure {
+            Log.e("TicketDetailScreen", "Failed to fetch transaction details", it)
+            transactionError = it.message ?: "Transaction details unavailable."
+        }
+        isTransactionLoading = false
+    }
+
     Scaffold(
+        containerColor = DetailBg,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text(text = "Ticket Details") },
+            CenterAlignedTopAppBar(
+                title = { Text("Ticket Details", color = DetailText) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = DetailText)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = DetailTop,
+                    titleContentColor = DetailText
+                )
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
-                .padding(paddingValues)
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(paddingValues)
+                .background(Brush.verticalGradient(colors = listOf(DetailTop, DetailBg)))
         ) {
-            // Colorful header row with ticket reference
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color(0xFF56CCF2), Color(0xFF2F80ED))
-                        )
-                    )
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Ticket Reference",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+            when {
+                transactionReference.isBlank() -> TicketErrorState(
+                    message = "Invalid ticket reference.",
+                    onBack = { navController.popBackStack() },
+                    onRetry = {}
                 )
-                Text(
-                    text = ticket?.transactionReference.orEmpty(),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+
+                isLoading && ticket == null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = DetailAccent)
+                    }
+                }
+
+                ticket == null -> TicketErrorState(
+                    message = "Ticket not found.",
+                    onBack = { navController.popBackStack() },
+                    onRetry = { userViewModel.fetchBoughtTickets() }
+                )
+
+                else -> TicketDetailContent(
+                    ticket = ticket,
+                    transaction = transaction,
+                    isTransactionLoading = isTransactionLoading,
+                    transactionError = transactionError,
+                    qrBitmap = qrBitmap,
+                    onDownloadQr = {
+                        createDocumentLauncher.launch("EventGlow_${ticket.transactionReference.orEmpty()}.png")
+                    }
                 )
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(16.dp))
+@Composable
+private fun TicketDetailContent(
+    ticket: BoughtTicket,
+    transaction: Transaction?,
+    isTransactionLoading: Boolean,
+    transactionError: String?,
+    qrBitmap: Bitmap?,
+    onDownloadQr: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        TicketHeaderCard(ticket = ticket)
 
-            // Card with event details
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Event Name: ${ticket?.eventName}",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        text = "Organizer: ${ticket?.eventOrganizer}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        text = "Date: ${ticket?.startDate} - ${ticket?.endDate}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        text = "Price: GHS ${ticket?.ticketPrice}",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DetailCard),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Ticket Details", color = DetailText, style = MaterialTheme.typography.titleMedium)
+                DetailRow("Reference", ticket.transactionReference.orEmpty())
+                DetailRow("Organizer", ticket.eventOrganizer.ifBlank { "N/A" })
+                DetailRow("Ticket Type", ticket.ticketName.ifBlank { "General" })
+                DetailRow("Amount", if (ticket.isFreeTicket) "FREE" else "GHS ${ticket.ticketPrice.ifBlank { "0.00" }}")
+                DetailRow("Status", ticket.paymentStatus.ifBlank { if (ticket.isFreeTicket) "success" else "N/A" })
+                DetailRow("Provider", ticket.paymentProvider.ifBlank { if (ticket.isFreeTicket) "free" else "N/A" })
+                DetailRow("Channel", ticket.paymentChannel.ifBlank { "N/A" })
+                DetailRow("Scanned", if (ticket.isScanned) "Yes" else "No")
+                if (ticket.isScanned) {
+                    DetailRow("Scanned At", ticket.scannedAt.ifBlank { "N/A" })
+                    DetailRow(
+                        "Scanned By",
+                        ticket.scannedByAdminName.ifBlank { ticket.scannedByAdminId.ifBlank { "N/A" } })
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(16.dp))
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DetailCard),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Payment Timeline", color = DetailText, style = MaterialTheme.typography.titleMedium)
+                if (isTransactionLoading) {
+                    CircularProgressIndicator(color = DetailAccent, modifier = Modifier.size(20.dp))
+                } else {
+                    DetailRow(
+                        "Created At",
+                        transaction?.createdAt?.ifBlank { ticket.paymentCreatedAt }
+                            ?: ticket.paymentCreatedAt.ifBlank { "N/A" })
+                    DetailRow(
+                        "Paid At",
+                        transaction?.paidAt?.ifBlank { ticket.paymentPaidAt } ?: ticket.paymentPaidAt.ifBlank { "N/A" })
+                    if (!transactionError.isNullOrBlank()) {
+                        Text(transactionError, color = DetailMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
 
-            // Card with transaction details
-            Card(
+        Card(
+            colors = CardDefaults.cardColors(containerColor = DetailCard),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Transaction Details",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.padding(bottom = 8.dp)
+                Text("Ticket QR Code", color = DetailText, style = MaterialTheme.typography.titleMedium)
+                if (qrBitmap != null) {
+                    Image(
+                        bitmap = qrBitmap.asImageBitmap(),
+                        contentDescription = "Ticket QR Code",
+                        modifier = Modifier
+                            .size(220.dp)
+                            .background(Color.White, RoundedCornerShape(8.dp))
+                            .padding(8.dp)
                     )
-                    // Add more transaction details if available
+                    Button(onClick = onDownloadQr) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Download QR")
+                    }
+                } else {
                     Text(
-                        text = transaction?.createdAt?.ifBlank { ticket?.paymentCreatedAt.orEmpty() }
-                            ?: ticket?.paymentCreatedAt.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Text(
-                        text = transaction?.paidAt?.ifBlank { ticket?.paymentPaidAt.orEmpty() }
-                            ?: ticket?.paymentPaidAt.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        "QR code data is unavailable.",
+                        color = DetailMuted,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
@@ -177,129 +302,143 @@ fun TicketDetailScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TicketDetailContent(
-    transactionId: String,
-    eventName: String,
-    eventOrganizer: String,
-    eventDate: String,
-    ticketPrice: String,
-    createdAt: String,
-    paidAt: String,
-    onBack: () -> Unit = {}
-) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = "Ticket Details") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Default.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            Row(
+private fun TicketHeaderCard(ticket: BoughtTicket) {
+    val statusColor =
+        if (ticket.paymentStatus.equals("success", true) || ticket.isFreeTicket) DetailAccent else DetailDanger
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = DetailCard),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.horizontalGradient(listOf(Color(0xFF56CCF2), Color(0xFF2F80ED))))
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .height(170.dp)
             ) {
-                Text(
-                    "Ticket Reference",
-                    style = MaterialTheme.typography.bodyLarge.copy(color = Color.White, fontWeight = FontWeight.Bold)
+                AsyncImage(
+                    model = ticket.imageUrl,
+                    contentDescription = ticket.eventName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-                Text(
-                    transactionId,
-                    style = MaterialTheme.typography.bodyLarge.copy(color = Color.White, fontWeight = FontWeight.Bold)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.36f))
                 )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF))
-            ) {
-                Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                Surface(
+                    color = statusColor.copy(alpha = 0.16f),
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                ) {
                     Text(
-                        "Event Name: $eventName",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        "Organizer: $eventOrganizer",
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        "Date: $eventDate",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                    Text(
-                        "Price: GHS $ticketPrice",
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = if (ticket.isFreeTicket) "FREE" else ticket.paymentStatus.uppercase()
+                            .ifBlank { "PENDING" },
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
-            ) {
-                Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(12.dp)
+                ) {
                     Text(
-                        "Transaction Details",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        text = ticket.eventName.ifBlank { "Event Ticket" },
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        createdAt,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    Text(
-                        paidAt,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        text = "${ticket.startDate.ifBlank { "N/A" }}  •  ${ticket.endDate.ifBlank { "N/A" }}",
+                        color = Color.White.copy(alpha = 0.86f),
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun TicketErrorState(
+    message: String,
+    onBack: () -> Unit,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(message, color = DetailText, style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = onBack) { Text("Back") }
+            Button(onClick = onRetry) { Text("Retry") }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = DetailMuted, style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(value.ifBlank { "N/A" }, color = DetailText, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+private fun generateQrBitmap(content: String, size: Int): Bitmap? {
+    if (content.isBlank()) return null
+    return runCatching {
+        val bitMatrix: BitMatrix = MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        for (x in 0 until size) {
+            for (y in 0 until size) {
+                bitmap.setPixel(x, y, if (bitMatrix[x, y]) AndroidColor.BLACK else AndroidColor.WHITE)
+            }
+        }
+        bitmap
+    }.getOrNull()
+}
+
+private fun Bitmap.toPngBytes(): ByteArray {
+    val stream = ByteArrayOutputStream()
+    compress(Bitmap.CompressFormat.PNG, 100, stream)
+    return stream.toByteArray()
 }
 
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
-fun TicketDetailScreenPreview() {
-    TicketDetailContent(
-        transactionId = "TXN-2026-001",
-        eventName = "Music Festival",
-        eventOrganizer = "EventGlow",
-        eventDate = "16/2/2026 - 16/2/2026",
-        ticketPrice = "75.00",
-        createdAt = "2026-02-16T09:00:00",
-        paidAt = "2026-02-16T09:03:00"
+private fun TicketHeaderCardPreview() {
+    TicketHeaderCard(
+        ticket = BoughtTicket(
+            transactionReference = "REF123",
+            paymentStatus = "success",
+            eventName = "Afro Sunset Party",
+            eventOrganizer = "EventGlow",
+            startDate = "16/02/2026",
+            endDate = "16/02/2026",
+            ticketName = "VIP",
+            ticketPrice = "75.00",
+            qrCodeData = "eventglow_ticket|REF123|event_1|user_1"
+        )
     )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+private fun TicketErrorStatePreview() {
+    TicketErrorState(message = "Ticket not found.", onBack = {}, onRetry = {})
 }

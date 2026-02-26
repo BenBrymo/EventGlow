@@ -1,468 +1,355 @@
 package com.example.eventglow.user
 
-import android.util.Log
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
-import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.dataClass.BoughtTicket
-import com.example.eventglow.ui.theme.Background
-import com.example.eventglow.ui.theme.CardGray
-import com.example.eventglow.ui.theme.SurfaceLevel2
-import com.example.eventglow.ui.theme.TextPrimary
-import com.example.eventglow.ui.theme.TextSecondary
-import com.google.accompanist.swiperefresh.SwipeRefresh
-import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 
+private val TicketsBg = Color(0xFF0B1115)
+private val TicketsTop = Color(0xFF111A20)
+private val TicketsCard = Color(0xFF1A252E)
+private val TicketsCardAlt = Color(0xFF243442)
+private val TicketsAccent = Color(0xFF1ED760)
+private val TicketsMuted = Color(0xFF9FB2C1)
+private val TicketsText = Color(0xFFEAF4FB)
+private val TicketsDanger = Color(0xFFFF5A5F)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun MyTicketsScreen(
-    navController: NavController
-) {
-
-    Scaffold(
-        containerColor = Background,
-        topBar = {
-            MyTicketsTopBar(onBack = {})
-        }
-    ) { padding ->
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-
-            MyTicketItem(
-                organizer = "fhikkm",
-                title = "bjj",
-                date = "18, Feb",
-                price = "GHS 0.0"
-            )
-        }
-    }
-}
-
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MyTicketsTopBar(
-    onBack: () -> Unit
-) {
-
-    CenterAlignedTopAppBar(
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = Background
-        ),
-        navigationIcon = {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    tint = TextPrimary
-                )
-            }
-        },
-        title = {
-            Text(
-                text = "My Tickets",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
-            )
-        }
-    )
-}
-
-@Composable
-private fun MyTicketItem(
-    organizer: String,
-    title: String,
-    date: String,
-    price: String
-) {
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(CardGray)
-            .padding(16.dp)
-    ) {
-
-        Column {
-
-            Text(
-                text = "Organizer: $organizer",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(SurfaceLevel2)
-                ) {
-
-                    AsyncImage(
-                        model = "https://picsum.photos/200/200",
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = date,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                }
-
-                Text(
-                    text = price,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextPrimary
-                )
-            }
-        }
-    }
-}
-
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun UserTicketScreen2(
     navController: NavController,
     userViewModel: UserViewModel = viewModel()
 ) {
     val isLoading by userViewModel.isLoading.collectAsState()
-    val tickets by userViewModel.boughtTickets.collectAsState()
     val isRefreshing by userViewModel.isRefreshing.collectAsState()
+    val tickets by userViewModel.boughtTickets.collectAsState()
+    val errorMessage by userViewModel.ticketErrorMessage.collectAsState()
 
-    // Pull to Refresh state
-    val swipeRefreshState = rememberSwipeRefreshState(isRefreshing)
-
-    LaunchedEffect(Unit) {
-        userViewModel.fetchBoughtTickets()
-    }
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = { userViewModel.refreshBoughtTickets() }
+    )
 
     Scaffold(
+        containerColor = TicketsBg,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "My Tickets",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    )
-                },
+            CenterAlignedTopAppBar(
+                title = { Text("My Tickets", color = TicketsText, style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = TicketsText
+                        )
                     }
                 },
+                actions = {
+                    IconButton(onClick = { userViewModel.fetchBoughtTickets() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TicketsAccent)
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = TicketsTop,
+                    titleContentColor = TicketsText
+                )
             )
         }
     ) { paddingValues ->
         Box(
             modifier = Modifier
-                .padding(paddingValues)
-                .background(Brush.verticalGradient(listOf(Color(0xFFDEE4FD), Color(0xFFB9D0F9))))
                 .fillMaxSize()
+                .padding(paddingValues)
+                .pullRefresh(pullRefreshState)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(TicketsTop, TicketsBg)
+                    )
+                )
         ) {
-            SwipeRefresh(
-                state = swipeRefreshState,
-                onRefresh = {
-                    userViewModel.fetchBoughtTickets()
+            when {
+                isLoading && tickets.isEmpty() -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = TicketsAccent)
+                    }
                 }
-            ) {
-                if (isLoading) {
-                    ShimmerEffect()
-                } else {
-                    if (tickets.isEmpty()) {
-                        EmptyStateView()
-                    } else {
-                        TicketList(tickets, navController)
+
+                !errorMessage.isNullOrBlank() -> {
+                    TicketsErrorState(
+                        message = errorMessage.orEmpty(),
+                        onRetry = {
+                            userViewModel.clearTicketError()
+                            userViewModel.refreshBoughtTickets()
+                        }
+                    )
+                }
+
+                tickets.isEmpty() -> {
+                    EmptyTicketsState()
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(tickets) { ticket ->
+                            SpotifyTicketCard(
+                                ticket = ticket,
+                                onClick = {
+                                    navController.navigate("detailed_ticket_screen/${ticket.transactionReference}")
+                                }
+                            )
+                        }
                     }
                 }
             }
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                contentColor = TicketsAccent,
+                backgroundColor = TicketsTop
+            )
         }
     }
 }
 
 @Composable
-fun EmptyStateView() {
-    Column(
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 24.dp)
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Event,
-            contentDescription = "No Tickets",
-            tint = Color(0xFF4A90E2),
-            modifier = Modifier.size(120.dp) // Larger icon
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "No Tickets Purchased",
-            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold),
-            color = Color(0xFF1E3A8A),
-            fontSize = 22.sp
-        )
-        Text(
-            text = "You haven't bought any tickets yet.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = Color(0xFF5A5A5A),
-            modifier = Modifier.padding(top = 8.dp)
-        )
-    }
-}
-
-@Composable
-fun TicketList(tickets: List<BoughtTicket>, navController: NavController) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(6.dp)
-    ) {
-        items(tickets) { ticket ->
-            TicketItem(ticket = ticket, modifier = Modifier.padding(4.dp), navController = navController)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun TicketItem(
+private fun SpotifyTicketCard(
     ticket: BoughtTicket,
-    modifier: Modifier = Modifier,
-    viewModel: UserViewModel = viewModel(),
-    navController: NavController
-
+    onClick: () -> Unit
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val animatedElevation by animateDpAsState(
-        targetValue = if (isPressed) 12.dp else 4.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow),
-        label = "",
-    )
-
-    val formattedStartDate = viewModel.convertToFormattedDate(ticket.startDate)
-    val formattedEndDate = viewModel.convertToFormattedDate(ticket.endDate)
-
-    val dayOfWeekStart = formattedStartDate.first.first
-    val monthStart = formattedStartDate.first.second
-    val dayOfMonthStart = formattedStartDate.second
-
-    val dayOfWeekEnd = formattedEndDate.first.first
-    val monthEnd = formattedEndDate.first.second
-    val dayOfMonthEnd = formattedEndDate.second
+    val paidColor = if (ticket.paymentStatus.equals("success", ignoreCase = true) || ticket.isFreeTicket) {
+        TicketsAccent
+    } else {
+        TicketsDanger
+    }
 
     Card(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp)
-            .clickable(interactionSource = interactionSource, indication = null) {
-                Log.d("Navigation", "Navigating to ticketDetail with reference: ${ticket.transactionReference}")
-                navController.navigate("detailed_ticket_screen/${ticket.transactionReference}")
-            }
-            .clip(RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
-        elevation = CardDefaults.cardElevation(defaultElevation = animatedElevation)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = TicketsCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
-            // Organizer's Name
-            Text(
-                text = "Organizer: ${ticket.eventOrganizer}",
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            // Row containing the event image and details
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(130.dp)
             ) {
-                // Event Image
-                Image(
-                    painter = rememberAsyncImagePainter(ticket.imageUrl),
-                    contentDescription = "Event Image",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop
+                AsyncImage(
+                    model = ticket.imageUrl,
+                    contentDescription = ticket.eventName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
                 )
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // Ticket Details
-                Column {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.38f))
+                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = paidColor.copy(alpha = 0.18f),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                ) {
                     Text(
-                        text = ticket.eventName,
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        text = if (ticket.isFreeTicket) "FREE" else ticket.paymentStatus.uppercase().ifBlank { "PAID" },
+                        color = paidColor,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     )
-
-                    if (ticket.startDate.isNotEmpty() && ticket.endDate.isNotEmpty()) {
-                        Text(
-                            text = "$dayOfMonthStart - $dayOfMonthEnd, $monthStart",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    } else {
-                        Text(
-                            text = "$dayOfMonthStart, $monthStart",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Price at the bottom right of the card
             Row(
-                horizontalArrangement = Arrangement.End,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "GHS ${ticket.ticketPrice}",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = FontWeight.Bold
+                Surface(
+                    shape = CircleShape,
+                    color = TicketsCardAlt,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.ConfirmationNumber,
+                            contentDescription = null,
+                            tint = TicketsAccent
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = ticket.eventName.ifBlank { "Event Ticket" },
+                        color = TicketsText,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = ticket.startDate.ifBlank { "Date not set" },
+                        color = TicketsMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        text = "Ticket: ${ticket.ticketName.ifBlank { "General" }}",
+                        color = TicketsMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Text(
+                    text = if (ticket.isFreeTicket) "FREE" else "GHS ${ticket.ticketPrice.ifBlank { "0.00" }}",
+                    color = TicketsText,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
     }
 }
 
-
 @Composable
-fun ShimmerEffect() {
-    val shimmerAlpha = remember { Animatable(0.3f) }
-
-    LaunchedEffect(key1 = Unit) {
-        shimmerAlpha.animateTo(
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 800),
-                repeatMode = RepeatMode.Reverse
-            )
-        )
-    }
-
-    LazyColumn(
+private fun EmptyTicketsState() {
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
     ) {
-        items(3) {
-            ShimmerItem(shimmerAlpha.value)
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Default.ConfirmationNumber,
+                contentDescription = null,
+                tint = TicketsMuted,
+                modifier = Modifier.size(64.dp)
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "No tickets yet",
+                color = TicketsText,
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                text = "Tickets you buy will appear here.",
+                color = TicketsMuted,
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
 
 @Composable
-fun ShimmerItem(alpha: Float) {
+private fun TicketsErrorState(
+    message: String,
+    onRetry: () -> Unit
+) {
     Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp)
-            .padding(vertical = 8.dp)
-            .alpha(alpha)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        Color.LightGray.copy(alpha = 0.3f),
-                        Color.LightGray.copy(alpha = 0.6f),
-                        Color.LightGray.copy(alpha = 0.3f),
-                        Color.LightGray.copy(alpha = 0.6f),
-                        Color.LightGray.copy(alpha = 0.3f),
-                        Color.LightGray.copy(alpha = 0.6f),
-                        Color.LightGray.copy(alpha = 0.3f),
-                        Color.LightGray.copy(alpha = 0.6f)
-                    )
-                ),
-                shape = RoundedCornerShape(16.dp)
+            .fillMaxSize()
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = message,
+                color = TicketsText,
+                style = MaterialTheme.typography.bodyMedium
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Tap to retry",
+                color = TicketsAccent,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.clickable(onClick = onRetry)
+            )
+        }
+    }
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun SpotifyTicketCardPreview() {
+    SpotifyTicketCard(
+        ticket = BoughtTicket(
+            transactionReference = "REF123",
+            paymentStatus = "success",
+            ticketPrice = "45.00",
+            ticketName = "VIP",
+            eventName = "Sunset Beats Festival",
+            startDate = "16/02/2026",
+            imageUrl = ""
+        ),
+        onClick = {}
     )
 }
 
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
-fun PreviewTicketItem() {
-    // Mock data for preview
-    val mockTicket = BoughtTicket(
-        eventName = "Music Concert 2024",
-        eventOrganizer = "Top Events",
-        startDate = "2024-09-10",
-        endDate = "2024-09-11",
-        ticketPrice = "50.00",
-        imageUrl = "https://example.com/event_image.png"
-    )
-    TicketItem(ticket = mockTicket, navController = rememberNavController())
+fun EmptyTicketsStatePreview() {
+    EmptyTicketsState()
 }

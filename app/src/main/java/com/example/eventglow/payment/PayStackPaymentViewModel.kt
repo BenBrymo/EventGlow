@@ -5,7 +5,6 @@ import android.util.Log
 import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.dataClass.Transaction
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,9 +30,6 @@ class PayStackPaymentViewModel(application: Application) : BaseViewModel(applica
 
     // Transaction reference
     var transactionReference: String? = null
-
-    // Firestore instance
-    private val db = FirebaseFirestore.getInstance()
 
     private val client = OkHttpClient()
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
@@ -128,37 +124,6 @@ class PayStackPaymentViewModel(application: Application) : BaseViewModel(applica
         _authorizationResult.value = AuthorizationResult.Idle
     }
 
-    fun saveTransactionToFirestore(transaction: Transaction) {
-        Log.d("PayStackPaymentViewModel", "Saving transaction to Firestore: $transaction")
-
-        val transactionData = hashMapOf(
-            "id" to transaction.id,
-            "status" to transaction.status,
-            "reference" to transaction.reference,
-            "amount" to transaction.amount,
-            "gatewayResponse" to transaction.gatewayResponse,
-            "paidAt" to transaction.paidAt,
-            "createdAt" to transaction.createdAt,
-            "channel" to transaction.channel,
-            "currency" to transaction.currency,
-            "authorizationCode" to transaction.authorizationCode,
-            "cardType" to transaction.cardType,
-            "bank" to transaction.bank,
-            "customerEmail" to transaction.customerEmail,
-            "customerCode" to transaction.customerCode,
-            "customerPhone" to transaction.customerPhoneNumber
-        )
-
-        db.collection("transactions")
-            .add(transactionData)
-            .addOnSuccessListener {
-                Log.d("PayStackPaymentViewModel", "Transaction saved successfully")
-            }
-            .addOnFailureListener { exception ->
-                Log.e("PayStackPaymentViewModel", "Failed to save transaction: ${exception.message}")
-            }
-    }
-
     suspend fun verifyTransaction() {
         setLoading()
         _verificationResult.value = VerificationResult.Loading
@@ -221,16 +186,6 @@ class PayStackPaymentViewModel(application: Application) : BaseViewModel(applica
                                 customerCode = customerCode,
                                 customerPhoneNumber = customerPhone
                             )
-
-                            try {
-                                saveTransactionToFirestore(transaction)
-                                Log.d("PaymentViewModel", "Transaction details saved to Firestore")
-                            } catch (e: Exception) {
-                                Log.d(
-                                    "PaymentViewModel",
-                                    "Could not save transaction details to firestore ${e.message}"
-                                )
-                            }
 
                             Log.d("Paystack viewModel: ", " Transaction status: $transactionStatus")
                             if (transactionStatus == "success") {

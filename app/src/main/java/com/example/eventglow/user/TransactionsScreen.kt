@@ -2,36 +2,64 @@ package com.example.eventglow.user
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AttachMoney
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.eventglow.dataClass.Transaction
-import kotlinx.coroutines.launch
 
+private val SportyBg = Color(0xFF0D1216)
+private val SportyTop = Color(0xFF111A20)
+private val SportyCard = Color(0xFF18222A)
+private val SportyCardLight = Color(0xFF22303B)
+private val SportyAccent = Color(0xFF39D353)
+private val SportyDanger = Color(0xFFFF5A5F)
+private val SportyMuted = Color(0xFF9CB0BE)
+private val SportyText = Color(0xFFEAF4FB)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,105 +69,271 @@ fun TransactionsScreen(
 ) {
     val transactions by transactionViewModel.transactions.collectAsState()
     val isLoading by transactionViewModel.isLoading.collectAsState()
-    val sheetState = rememberModalBottomSheetState()
-    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
-    val coroutineScope = rememberCoroutineScope()
+    val errorMessage by transactionViewModel.errorMessage.collectAsState()
 
     LaunchedEffect(Unit) {
         transactionViewModel.fetchTransactions()
     }
 
+    TransactionsScreenContent(
+        transactions = transactions,
+        isLoading = isLoading,
+        errorMessage = errorMessage,
+        onRetry = {
+            transactionViewModel.clearError()
+            transactionViewModel.fetchTransactions()
+        },
+        onRefresh = { transactionViewModel.fetchTransactions() }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TransactionsScreenContent(
+    transactions: List<Transaction>,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onRetry: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
+
     Scaffold(
+        containerColor = SportyBg,
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Transactions", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Transactions", color = SportyText, style = MaterialTheme.typography.titleLarge) },
+                actions = {
+                    IconButton(onClick = onRefresh) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = SportyAccent)
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = SportyTop,
+                    titleContentColor = SportyText,
+                    actionIconContentColor = SportyAccent
                 )
             )
         }
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
-                .padding(paddingValues)
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface),
-            contentAlignment = Alignment.Center
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(SportyTop, SportyBg)
+                    )
+                )
+                .padding(paddingValues)
         ) {
-            if (isLoading) {
-                CircularProgressIndicator()
-            } else if (transactions.isEmpty()) {
-                Text("No transactions found", style = MaterialTheme.typography.bodyMedium)
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(10.dp)
-                ) {
-                    items(transactions) { transaction ->
-                        TransactionItem(transaction) {
-                            selectedTransaction = transaction
-                            coroutineScope.launch {
-                                sheetState.show()
-                            }
+            TransactionSummaryRow(transactions = transactions)
+
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = SportyAccent)
+                    }
+                }
+
+                !errorMessage.isNullOrBlank() -> {
+                    ErrorState(
+                        message = errorMessage.orEmpty(),
+                        onRetry = onRetry
+                    )
+                }
+
+                transactions.isEmpty() -> {
+                    EmptyState()
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(transactions) { transaction ->
+                            SportyTransactionCard(
+                                transaction = transaction,
+                                onClick = {
+                                    selectedTransaction = transaction
+                                }
+                            )
                         }
+                        item { Spacer(modifier = Modifier.height(12.dp)) }
                     }
                 }
             }
         }
     }
 
-    selectedTransaction?.let {
+    selectedTransaction?.let { tx ->
         ModalBottomSheet(
-            onDismissRequest = { selectedTransaction = null },
-            sheetState = sheetState
+            containerColor = SportyCard,
+            onDismissRequest = { selectedTransaction = null }
         ) {
-            TransactionDetails(it)
+            TransactionDetails(transaction = tx)
         }
     }
 }
 
 @Composable
-fun TransactionItem(transaction: Transaction, onClick: () -> Unit) {
-    val successGreen = Color(0xFF4CAF50)
+private fun TransactionSummaryRow(transactions: List<Transaction>) {
+    val successCount = transactions.count { it.status.equals("success", ignoreCase = true) }
+    val failedCount = transactions.count { !it.status.equals("success", ignoreCase = true) }
 
-    Card(
-        shape = RoundedCornerShape(8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        SummaryChip(title = "Total", value = transactions.size.toString(), modifier = Modifier.weight(1f))
+        SummaryChip(
+            title = "Success",
+            value = successCount.toString(),
+            accent = SportyAccent,
+            modifier = Modifier.weight(1f)
+        )
+        SummaryChip(
+            title = "Failed",
+            value = failedCount.toString(),
+            accent = SportyDanger,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun SummaryChip(
+    title: String,
+    value: String,
+    accent: Color = SportyText,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = SportyCardLight
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(text = title, color = SportyMuted, style = MaterialTheme.typography.labelMedium)
+            Text(
+                text = value,
+                color = accent,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun SportyTransactionCard(
+    transaction: Transaction,
+    onClick: () -> Unit
+) {
+    val isSuccess = transaction.status.equals("success", ignoreCase = true)
+    val statusColor = if (isSuccess) SportyAccent else SportyDanger
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SportyCard),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp)
             .clickable(onClick = onClick)
-            .padding(4.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.AttachMoney,
-                contentDescription = "Transaction Icon",
-                modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+            Surface(
+                shape = CircleShape,
+                color = SportyCardLight,
+                modifier = Modifier.width(42.dp).height(42.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.AttachMoney, contentDescription = null, tint = SportyAccent)
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (transaction.status == "success") "Ticket Purchase" else "Failed Transaction",
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
+                    text = transaction.reference.ifBlank { transaction.id.ifBlank { "Transaction" } },
+                    color = SportyText,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${transaction.currency} ${transaction.amount}",
-                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                    color = successGreen
+                    text = "${transaction.currency.ifBlank { "GHS" }} ${transaction.amount}",
+                    color = SportyText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = transaction.paidAt.take(10),
-                    style = MaterialTheme.typography.bodySmall
+                    text = transaction.paidAt.ifBlank { transaction.createdAt.ifBlank { "No date" } },
+                    color = SportyMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.16f)) {
+                Text(
+                    text = transaction.status.ifBlank { "unknown" }.uppercase(),
+                    color = statusColor,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ErrorState(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = SportyDanger)
+        Text(text = message, color = SportyText, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = "Tap to retry",
+            color = SportyAccent,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.clickable(onClick = onRetry)
+        )
+    }
+}
+
+@Composable
+private fun EmptyState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "No transactions yet",
+            color = SportyMuted,
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 
@@ -148,40 +342,37 @@ fun TransactionDetails(transaction: Transaction) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("Transaction Details", style = MaterialTheme.typography.titleLarge)
-        Spacer(modifier = Modifier.height(8.dp))
-
+        Text("Transaction Details", color = SportyText, style = MaterialTheme.typography.titleLarge)
         TransactionDetailRow("Transaction ID", transaction.id)
-        TransactionDetailRow("Status", transaction.status.capitalize())
-        TransactionDetailRow("Amount", "${transaction.currency} ${transaction.amount}")
-        TransactionDetailRow("Paid At", transaction.paidAt)
-        TransactionDetailRow("Payment Channel", transaction.channel.capitalize())
-        TransactionDetailRow("Reference", transaction.reference)
+        TransactionDetailRow("Status", transaction.status)
+        TransactionDetailRow("Amount", "${transaction.currency.ifBlank { "GHS" }} ${transaction.amount}")
+        TransactionDetailRow("Paid At", transaction.paidAt.ifBlank { "N/A" })
+        TransactionDetailRow("Created At", transaction.createdAt.ifBlank { "N/A" })
+        TransactionDetailRow("Channel", transaction.channel.ifBlank { "N/A" })
+        TransactionDetailRow("Reference", transaction.reference.ifBlank { "N/A" })
+        TransactionDetailRow("Gateway", transaction.gatewayResponse.ifBlank { "N/A" })
     }
 }
 
 @Composable
 fun TransactionDetailRow(label: String, value: String) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = "$label:",
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(120.dp)
-        )
-        Text(text = value)
+        Text(text = label, color = SportyMuted, style = MaterialTheme.typography.bodyMedium)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = value, color = SportyText, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun TransactionItemPreview() {
-    TransactionItem(
+    SportyTransactionCard(
         transaction = Transaction(
             id = "tx_1",
             status = "success",
@@ -208,5 +399,60 @@ fun TransactionDetailsPreview() {
             reference = "REF456",
             channel = "mobile_money"
         )
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun TransactionsScreenContentPreview() {
+    TransactionsScreenContent(
+        transactions = listOf(
+            Transaction(
+                id = "tx_1",
+                status = "success",
+                amount = "120.00",
+                currency = "GHS",
+                paidAt = "2026-02-16T12:00:00",
+                reference = "REF123",
+                channel = "card"
+            ),
+            Transaction(
+                id = "tx_2",
+                status = "failed",
+                amount = "75.00",
+                currency = "GHS",
+                paidAt = "2026-02-17T10:30:00",
+                reference = "REF456",
+                channel = "mobile_money"
+            )
+        ),
+        isLoading = false,
+        errorMessage = null,
+        onRetry = {},
+        onRefresh = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun TransactionsScreenEmptyPreview() {
+    TransactionsScreenContent(
+        transactions = emptyList(),
+        isLoading = false,
+        errorMessage = null,
+        onRetry = {},
+        onRefresh = {}
+    )
+}
+
+@Preview(showBackground = true, apiLevel = 34)
+@Composable
+fun TransactionsScreenErrorPreview() {
+    TransactionsScreenContent(
+        transactions = emptyList(),
+        isLoading = false,
+        errorMessage = "Failed to fetch transactions",
+        onRetry = {},
+        onRefresh = {}
     )
 }

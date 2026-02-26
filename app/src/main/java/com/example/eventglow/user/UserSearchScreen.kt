@@ -1,22 +1,50 @@
 package com.example.eventglow.user
 
-
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -27,6 +55,7 @@ import com.example.eventglow.dataClass.Event
 import com.example.eventglow.events_management.EventsManagementViewModel
 import com.example.eventglow.navigation.Routes
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserSearchScreen(
     navController: NavController,
@@ -34,130 +63,335 @@ fun UserSearchScreen(
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
     val filteredEvents by viewModel.filteredEvents.collectAsState()
+    val allEvents by viewModel.events.collectAsState()
+    val categories by viewModel.eventCategories.collectAsState()
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        TextField(
-            value = searchQuery,
-            placeholder = { Text(text = "Search Event name,venue...") },
-            onValueChange = { input ->
-                viewModel.onSearchQueryChange(input)
-            },
-            leadingIcon = {
-                IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Navigate Back")
+    LaunchedEffect(Unit) {
+        viewModel.fetchEventCategories()
+    }
+
+    val topPicks = allEvents.take(8)
+    val showSearchResults = searchQuery.isNotBlank()
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "Search",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { navController.navigate(Routes.FILTER_SEARCH_SCREEN) }) {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = "Advanced filter"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                HeroSearchBar(
+                    query = searchQuery,
+                    onQueryChange = viewModel::onSearchQueryChange,
+                    onOpenFilters = { navController.navigate(Routes.FILTER_SEARCH_SCREEN) }
+                )
+            }
+
+            if (!showSearchResults) {
+                item {
+                    SectionTitle("Browse categories")
                 }
-            },
-            trailingIcon = {
-                IconButton(onClick = { navController.navigate(Routes.FILTER_SEARCH_SCREEN) }) {
-                    Icon(imageVector = Icons.Default.FilterList, contentDescription = "Filter List")
+
+                item {
+                    if (categories.isEmpty()) {
+                        Text(
+                            text = "No categories yet.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(categories) { category ->
+                                CategoryChip(
+                                    name = category.name,
+                                    onClick = { viewModel.onSearchQueryChange(category.name) }
+                                )
+                            }
+                        }
+                    }
                 }
-            },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        // container to keep filterd results
-        LazyColumn {
-            items(filteredEvents) { event ->
-                EventRow(event = event, onClick = { navController.navigate("detailed_event_screen/${event.id}") })
+
+                item {
+                    SectionTitle("Top picks")
+                }
+
+                item {
+                    if (topPicks.isEmpty()) {
+                        Text(
+                            text = "No events available.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(topPicks) { event ->
+                                TopPickCard(
+                                    event = event,
+                                    onClick = { navController.navigate("detailed_event_screen/${event.id}") }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                SectionTitle(if (showSearchResults) "Search results" else "All events")
+            }
+
+            if (showSearchResults && filteredEvents.isEmpty()) {
+                item {
+                    Text(
+                        text = "No events match \"$searchQuery\".",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                val rows = if (showSearchResults) filteredEvents else allEvents
+                items(rows) { event ->
+                    EventResultRow(
+                        event = event,
+                        onClick = { navController.navigate("detailed_event_screen/${event.id}") }
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-fun EventRow(event: Event, onClick: (Event) -> Unit, viewModel: EventsManagementViewModel = viewModel()) {
-    Row(
-        modifier = Modifier
-            .clickable { onClick(event) }
-            .padding(8.dp)
-            .fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+private fun HeroSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onOpenFilters: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        // Event Image
-        Card(
+        Column(
             modifier = Modifier
-                .size(105.dp)
-                .clip(RoundedCornerShape(8.dp)),
-            elevation = CardDefaults.cardElevation(4.dp),
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    )
+                )
+                .padding(14.dp)
+        ) {
+            Text(
+                text = "Find your next event",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null
+                    )
+                },
+                placeholder = { Text("Search by event name or venue") }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = onOpenFilters,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = null
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Advanced filters")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+}
+
+@Composable
+private fun CategoryChip(
+    name: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = name,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+private fun TopPickCard(
+    event: Event,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .width(210.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column {
+            AsyncImage(
+                model = event.imageUri,
+                contentDescription = event.eventName,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+            )
+            Column(Modifier.padding(10.dp)) {
+                Text(
+                    text = event.eventName,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = event.startDate.ifBlank { "Date not set" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventResultRow(
+    event: Event,
+    onClick: () -> Unit,
+    viewModel: EventsManagementViewModel = viewModel()
+) {
+    val formattedStartDate = viewModel.convertToFormattedDate(event.startDate)
+    val dayOfWeekStart = formattedStartDate.first.first
+    val monthStart = formattedStartDate.first.second
+    val dayOfMonthStart = formattedStartDate.second
+    val freeLabel = event.ticketTypes.any { it.price <= 0.0 }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
                 model = event.imageUri,
-                contentDescription = "Event Image",
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .size(90.dp)
+                    .clip(RoundedCornerShape(10.dp))
             )
-        }
-
-        Spacer(modifier = Modifier.width(16.dp))
-
-        // Event Details Column
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(end = 8.dp)
-        ) {
-
-            val formattedStartDate = viewModel.convertToFormattedDate(event.startDate)
-            val formattedEndDate = viewModel.convertToFormattedDate(event.endDate)
-
-            val dayOfWeekStart = formattedStartDate.first.first
-            val monthStart = formattedStartDate.first.second
-            val dayOfMonthStart = formattedStartDate.second
-
-            val dayOfWeekEnd = formattedEndDate.first.first
-            val monthEnd = formattedEndDate.first.second
-            val dayOfMonthEnd = formattedEndDate.second
-
-            val multiDayEvent = event.isMultiDayEvent
-
-            Text(
-                text = event.eventName,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = event.eventCategory,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = event.eventStatus,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            if (multiDayEvent) {
-                //Event Start Date
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Start: $dayOfWeekStart, $dayOfMonthStart $monthStart",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
+                    text = event.eventName,
+                    style = MaterialTheme.typography.titleSmall
                 )
-                //Event End Date
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "End: $dayOfWeekEnd, $dayOfMonthEnd $monthEnd",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
+                    text = event.eventVenue.ifBlank { "Venue not set" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            } else {
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = "Start: $dayOfWeekStart, $dayOfMonthStart $monthStart",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray
+                    text = "$dayOfWeekStart, $dayOfMonthStart $monthStart",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (freeLabel) Color(0xFF1DB954).copy(alpha = 0.20f)
+                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = if (freeLabel) "Free" else "Paid",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (freeLabel) Color(0xFF1DB954) else MaterialTheme.colorScheme.primary
                 )
             }
         }
     }
 }
 
-
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
-fun ScreenPreview() {
+private fun ScreenPreview() {
     UserSearchScreen(navController = rememberNavController())
 }

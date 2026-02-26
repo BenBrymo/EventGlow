@@ -6,16 +6,21 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
+import com.example.eventglow.dataClass.EventCategory
 import com.example.eventglow.dataClass.TicketType
+import com.example.eventglow.dataClass.Transaction
 import com.example.eventglow.dataClass.User
 import com.example.eventglow.dataClass.UserPreferences
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -51,6 +56,9 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     private val _filteredEvents = MutableStateFlow<List<Event>>(emptyList())
     val filteredEvents: StateFlow<List<Event>> = _filteredEvents.asStateFlow()
 
+    private val _eventCategories = MutableStateFlow<List<EventCategory>>(emptyList())
+    val eventCategories: StateFlow<List<EventCategory>> = _eventCategories.asStateFlow()
+
     // StateFlow to hold and emit the list of bought tickets
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -59,8 +67,57 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing
 
+    private val _ticketErrorMessage = MutableStateFlow<String?>(null)
+    val ticketErrorMessage: StateFlow<String?> = _ticketErrorMessage.asStateFlow()
+
+    private var hasObservedBoughtTickets = false
+
     init {
         fetchEvents()
+        fetchEventCategories()
+        observeBoughtTickets()
+    }
+
+    private fun observeBoughtTickets() {
+        if (hasObservedBoughtTickets) return
+        hasObservedBoughtTickets = true
+        fetchBoughtTickets()
+    }
+
+    fun fetchEventCategories() {
+        viewModelScope.launch {
+            try {
+                val snapshot = firestore.collection("eventCategories").get().await()
+                val categories = snapshot.documents.mapNotNull { document ->
+                    val name = document.getString("name")?.trim().orEmpty()
+                    if (name.isBlank()) {
+                        null
+                    } else {
+                        EventCategory(
+                            id = document.id,
+                            name = name
+                        )
+                    }
+                }
+
+                _eventCategories.value = if (categories.isNotEmpty()) {
+                    categories.sortedBy { it.name.lowercase(Locale.getDefault()) }
+                } else {
+                    _events.value.mapNotNull { event ->
+                        val category = event.eventCategory.trim()
+                        if (category.isBlank()) null else EventCategory(name = category)
+                    }.distinctBy { it.name.lowercase(Locale.getDefault()) }
+                        .sortedBy { it.name.lowercase(Locale.getDefault()) }
+                }
+            } catch (e: Exception) {
+                Log.e("UserViewModel", "Failed to fetch event categories", e)
+                _eventCategories.value = _events.value.mapNotNull { event ->
+                    val category = event.eventCategory.trim()
+                    if (category.isBlank()) null else EventCategory(name = category)
+                }.distinctBy { it.name.lowercase(Locale.getDefault()) }
+                    .sortedBy { it.name.lowercase(Locale.getDefault()) }
+            }
+        }
     }
 
     fun fetchFeaturedEvents() {
@@ -483,8 +540,14 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             _isRefreshing.value = true
+            _ticketErrorMessage.value = null
             try {
-                val userId = auth.currentUser?.uid ?: return@launch
+                val userId = auth.currentUser?.uid
+                if (userId.isNullOrBlank()) {
+                    _boughtTickets.value = emptyList()
+                    _ticketErrorMessage.value = "No signed-in user found."
+                    return@launch
+                }
                 Log.d("UserViewModel", "Fetching tickets for user ID: $userId")
 
                 val userDocRef = firestore.collection("users").document(userId)
@@ -493,13 +556,15 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
                 if (user != null) {
                     Log.d("UserViewModel", "Successfully fetched tickets: ${user.boughtTickets}")
-                    _boughtTickets.value = user.boughtTickets
+                    _boughtTickets.value = user.boughtTickets.sortedByDescending { parseTicketSortKey(it) }
                 } else {
                     Log.d("UserViewModel", "No user data found in Firestore.")
                     _boughtTickets.value = emptyList()
                 }
             } catch (e: Exception) {
                 Log.e("UserViewModel", "Error fetching tickets from Firestore", e)
+                _boughtTickets.value = emptyList()
+                _ticketErrorMessage.value = e.localizedMessage ?: "Failed to fetch tickets."
             } finally {
                 _isLoading.value = false
                 _isRefreshing.value = false
@@ -507,106 +572,209 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun clearTicketError() {
+        _ticketErrorMessage.value = null
+    }
+
+    fun refreshBoughtTickets() {
+        fetchBoughtTickets()
+    }
+
+    private fun parseTicketSortKey(ticket: BoughtTicket): Long {
+        val candidates = listOf(
+            ticket.paymentPaidAt,
+            ticket.paymentCreatedAt,
+            ticket.startDate
+        ).filter { it.isNotBlank() }
+
+        val parsers = listOf(
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()),
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        )
+
+        for (value in candidates) {
+            for (parser in parsers) {
+                try {
+                    val parsed = parser.parse(value)
+                    if (parsed != null) return parsed.time
+                } catch (_: Exception) {
+                    // continue
+                }
+            }
+        }
+        return 0L
+    }
+
     fun processBoughtTicket(boughtTicket: BoughtTicket) {
         viewModelScope.launch {
-            try {
-                Log.d("UserViewModel", "Processing bought ticket: $boughtTicket")
-                // Save bought ticket to SharedPreferences
-                sharedPreferences.addTicketToBoughtTickets(boughtTicket)
-                Log.d("UserViewModel", "Successfully saved ticket to SharedPreferences.")
-
-                // Update the user's information in Firestore
-                updateUserInformationInFirestore(boughtTicket)
-            } catch (e: Exception) {
-                Log.e("UserViewModel", "Error processing bought ticket", e)
-            }
+            val fallbackTransaction = transactionFromTicket(boughtTicket)
+            commitTicketPurchase(boughtTicket, fallbackTransaction)
         }
     }
 
-    private fun updateUserInformationInFirestore(boughtTicket: BoughtTicket) {
-        viewModelScope.launch {
-            try {
-                val userId = auth.currentUser?.uid ?: return@launch
-                Log.d("UserViewModel", "Updating Firestore for user ID: $userId")
-
-                val userDocRef = firestore.collection("users").document(userId)
-                val userSnapshot = userDocRef.get().await()
-                val userData = userSnapshot.data ?: mutableMapOf<String, Any>()
-                Log.d("UserViewModel", "Fetched user data: $userData")
-
-                val existingTickets = (userData["boughtTickets"] as? List<Map<String, Any>>)?.map {
-                    BoughtTicket(
-                        transactionReference = it["transactionReference"] as? String ?: "",
-                        paymentProvider = it["paymentProvider"] as? String ?: "",
-                        paymentStatus = it["paymentStatus"] as? String ?: "",
-                        paymentGatewayResponse = it["paymentGatewayResponse"] as? String ?: "",
-                        paymentAmount = it["paymentAmount"] as? String ?: "",
-                        paymentCurrency = it["paymentCurrency"] as? String ?: "",
-                        paymentChannel = it["paymentChannel"] as? String ?: "",
-                        paymentAuthorizationCode = it["paymentAuthorizationCode"] as? String ?: "",
-                        paymentCardType = it["paymentCardType"] as? String ?: "",
-                        paymentBank = it["paymentBank"] as? String ?: "",
-                        paymentCustomerEmail = it["paymentCustomerEmail"] as? String ?: "",
-                        paymentPaidAt = it["paymentPaidAt"] as? String ?: "",
-                        paymentCreatedAt = it["paymentCreatedAt"] as? String ?: "",
-                        isFreeTicket = it["isFreeTicket"] as? Boolean ?: false,
-                        eventOrganizer = it["eventOrganizer"] as? String ?: "",
-                        eventId = it["eventId"] as? String ?: "",
-                        eventName = it["eventName"] as? String ?: "",
-                        startDate = it["startDate"] as? String ?: "",
-                        eventStatus = it["eventStatus"] as? String ?: "",
-                        endDate = it["endDate"] as? String ?: "",
-                        imageUrl = it["imageUrl"] as? String ?: "",
-                        ticketName = it["ticketName"] as? String ?: "",
-                        ticketPrice = it["ticketPrice"] as? String ?: "",
-                        qrCodeData = it["qrCodeData"] as? String ?: "",
-                        isScanned = it["isScanned"] as? Boolean ?: false,
-                        scannedAt = it["scannedAt"] as? String ?: "",
-                        scannedByAdminId = it["scannedByAdminId"] as? String ?: "",
-                        scannedByAdminName = it["scannedByAdminName"] as? String ?: ""
-                    )
-                }?.toMutableList() ?: mutableListOf()
-
-                Log.d("UserViewModel", "Adding new ticket: $boughtTicket")
-                existingTickets.add(boughtTicket)
-
-                userDocRef.update("boughtTickets", existingTickets.map {
-                    mapOf(
-                        "transactionReference" to it.transactionReference,
-                        "paymentProvider" to it.paymentProvider,
-                        "paymentStatus" to it.paymentStatus,
-                        "paymentGatewayResponse" to it.paymentGatewayResponse,
-                        "paymentAmount" to it.paymentAmount,
-                        "paymentCurrency" to it.paymentCurrency,
-                        "paymentChannel" to it.paymentChannel,
-                        "paymentAuthorizationCode" to it.paymentAuthorizationCode,
-                        "paymentCardType" to it.paymentCardType,
-                        "paymentBank" to it.paymentBank,
-                        "paymentCustomerEmail" to it.paymentCustomerEmail,
-                        "paymentPaidAt" to it.paymentPaidAt,
-                        "paymentCreatedAt" to it.paymentCreatedAt,
-                        "isFreeTicket" to it.isFreeTicket,
-                        "eventOrganizer" to it.eventOrganizer,
-                        "eventId" to it.eventId,
-                        "eventName" to it.eventName,
-                        "startDate" to it.startDate,
-                        "eventStatus" to it.eventStatus,
-                        "endDate" to it.endDate,
-                        "imageUrl" to it.imageUrl,
-                        "ticketName" to it.ticketName,
-                        "ticketPrice" to it.ticketPrice,
-                        "qrCodeData" to it.qrCodeData,
-                        "isScanned" to it.isScanned,
-                        "scannedAt" to it.scannedAt,
-                        "scannedByAdminId" to it.scannedByAdminId,
-                        "scannedByAdminName" to it.scannedByAdminName
-                    )
-                }).await()
-                Log.d("UserViewModel", "Successfully updated Firestore with bought tickets.")
-            } catch (e: Exception) {
-                Log.e("UserViewModel", "Error updating Firestore with bought ticket", e)
+    suspend fun commitTicketPurchase(
+        boughtTicket: BoughtTicket,
+        transaction: Transaction
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val userId = auth.currentUser?.uid
+            if (userId.isNullOrBlank()) {
+                return@withContext Result.failure(IllegalStateException("No signed-in user found."))
             }
+
+            val reference = transaction.reference.ifBlank { boughtTicket.transactionReference.orEmpty() }
+            if (reference.isBlank()) {
+                return@withContext Result.failure(IllegalStateException("Missing transaction reference."))
+            }
+
+            val normalizedTicket = if (boughtTicket.transactionReference.isNullOrBlank()) {
+                boughtTicket.copy(transactionReference = reference)
+            } else {
+                boughtTicket
+            }
+
+            val userDocRef = firestore.collection("users").document(userId)
+            val transactionDocRef = firestore.collection("transactions").document(reference)
+
+            val userSnapshot = userDocRef.get().await()
+            val existingTickets = (userSnapshot.get("boughtTickets") as? List<Map<String, Any>>)
+                ?.map { mapToBoughtTicket(it) }
+                ?.toMutableList()
+                ?: mutableListOf()
+
+            val alreadyExists = existingTickets.any { it.transactionReference == normalizedTicket.transactionReference }
+            if (!alreadyExists) {
+                existingTickets.add(normalizedTicket)
+            }
+
+            val normalizedTransaction = transaction.copy(
+                id = transaction.id.ifBlank { reference },
+                reference = reference
+            )
+
+            firestore.runBatch { batch ->
+                batch.set(transactionDocRef, transactionToMap(normalizedTransaction), SetOptions.merge())
+                batch.set(
+                    userDocRef,
+                    mapOf("boughtTickets" to existingTickets.map { boughtTicketToMap(it) }),
+                    SetOptions.merge()
+                )
+            }.await()
+
+            sharedPreferences.addTicketToBoughtTickets(normalizedTicket)
+            _boughtTickets.value = existingTickets.sortedByDescending { parseTicketSortKey(it) }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("UserViewModel", "Error committing ticket purchase", e)
+            Result.failure(e)
         }
+    }
+
+    private fun transactionFromTicket(ticket: BoughtTicket): Transaction {
+        val reference = ticket.transactionReference.orEmpty()
+        return Transaction(
+            id = reference,
+            status = ticket.paymentStatus.ifBlank { if (ticket.isFreeTicket) "success" else "" },
+            reference = reference,
+            amount = ticket.paymentAmount.ifBlank { if (ticket.isFreeTicket) "0" else ticket.ticketPrice },
+            gatewayResponse = ticket.paymentGatewayResponse,
+            paidAt = ticket.paymentPaidAt,
+            createdAt = ticket.paymentCreatedAt,
+            channel = ticket.paymentChannel.ifBlank { if (ticket.isFreeTicket) "free" else "" },
+            currency = ticket.paymentCurrency.ifBlank { "GHS" },
+            authorizationCode = ticket.paymentAuthorizationCode,
+            cardType = ticket.paymentCardType,
+            bank = ticket.paymentBank,
+            customerEmail = ticket.paymentCustomerEmail
+        )
+    }
+
+    private fun transactionToMap(transaction: Transaction): Map<String, Any?> {
+        return mapOf(
+            "id" to transaction.id,
+            "status" to transaction.status,
+            "reference" to transaction.reference,
+            "amount" to transaction.amount,
+            "gatewayResponse" to transaction.gatewayResponse,
+            "paidAt" to transaction.paidAt,
+            "createdAt" to transaction.createdAt,
+            "channel" to transaction.channel,
+            "currency" to transaction.currency,
+            "authorizationCode" to transaction.authorizationCode,
+            "cardType" to transaction.cardType,
+            "bank" to transaction.bank,
+            "customerEmail" to transaction.customerEmail,
+            "customerCode" to transaction.customerCode,
+            "customerPhone" to transaction.customerPhoneNumber
+        )
+    }
+
+    private fun boughtTicketToMap(ticket: BoughtTicket): Map<String, Any?> {
+        return mapOf(
+            "transactionReference" to ticket.transactionReference,
+            "paymentProvider" to ticket.paymentProvider,
+            "paymentStatus" to ticket.paymentStatus,
+            "paymentGatewayResponse" to ticket.paymentGatewayResponse,
+            "paymentAmount" to ticket.paymentAmount,
+            "paymentCurrency" to ticket.paymentCurrency,
+            "paymentChannel" to ticket.paymentChannel,
+            "paymentAuthorizationCode" to ticket.paymentAuthorizationCode,
+            "paymentCardType" to ticket.paymentCardType,
+            "paymentBank" to ticket.paymentBank,
+            "paymentCustomerEmail" to ticket.paymentCustomerEmail,
+            "paymentPaidAt" to ticket.paymentPaidAt,
+            "paymentCreatedAt" to ticket.paymentCreatedAt,
+            "isFreeTicket" to ticket.isFreeTicket,
+            "eventOrganizer" to ticket.eventOrganizer,
+            "eventId" to ticket.eventId,
+            "eventName" to ticket.eventName,
+            "startDate" to ticket.startDate,
+            "eventStatus" to ticket.eventStatus,
+            "endDate" to ticket.endDate,
+            "imageUrl" to ticket.imageUrl,
+            "ticketName" to ticket.ticketName,
+            "ticketPrice" to ticket.ticketPrice,
+            "qrCodeData" to ticket.qrCodeData,
+            "isScanned" to ticket.isScanned,
+            "scannedAt" to ticket.scannedAt,
+            "scannedByAdminId" to ticket.scannedByAdminId,
+            "scannedByAdminName" to ticket.scannedByAdminName
+        )
+    }
+
+    private fun mapToBoughtTicket(map: Map<String, Any>): BoughtTicket {
+        return BoughtTicket(
+            transactionReference = map["transactionReference"] as? String ?: "",
+            paymentProvider = map["paymentProvider"] as? String ?: "",
+            paymentStatus = map["paymentStatus"] as? String ?: "",
+            paymentGatewayResponse = map["paymentGatewayResponse"] as? String ?: "",
+            paymentAmount = map["paymentAmount"] as? String ?: "",
+            paymentCurrency = map["paymentCurrency"] as? String ?: "",
+            paymentChannel = map["paymentChannel"] as? String ?: "",
+            paymentAuthorizationCode = map["paymentAuthorizationCode"] as? String ?: "",
+            paymentCardType = map["paymentCardType"] as? String ?: "",
+            paymentBank = map["paymentBank"] as? String ?: "",
+            paymentCustomerEmail = map["paymentCustomerEmail"] as? String ?: "",
+            paymentPaidAt = map["paymentPaidAt"] as? String ?: "",
+            paymentCreatedAt = map["paymentCreatedAt"] as? String ?: "",
+            isFreeTicket = map["isFreeTicket"] as? Boolean ?: false,
+            eventOrganizer = map["eventOrganizer"] as? String ?: "",
+            eventId = map["eventId"] as? String ?: "",
+            eventName = map["eventName"] as? String ?: "",
+            startDate = map["startDate"] as? String ?: "",
+            eventStatus = map["eventStatus"] as? String ?: "",
+            endDate = map["endDate"] as? String ?: "",
+            imageUrl = map["imageUrl"] as? String ?: "",
+            ticketName = map["ticketName"] as? String ?: "",
+            ticketPrice = map["ticketPrice"] as? String ?: "",
+            qrCodeData = map["qrCodeData"] as? String ?: "",
+            isScanned = map["isScanned"] as? Boolean ?: false,
+            scannedAt = map["scannedAt"] as? String ?: "",
+            scannedByAdminId = map["scannedByAdminId"] as? String ?: "",
+            scannedByAdminName = map["scannedByAdminName"] as? String ?: ""
+        )
     }
 
     fun convertToFormattedDate(dateString: String): Pair<Pair<String, String>, String> {

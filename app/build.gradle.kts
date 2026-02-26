@@ -139,6 +139,7 @@ dependencies {
     // Media
     implementation(libs.media3.common)
     implementation(libs.play.services.code.scanner)
+    implementation(libs.zxing.core)
 
     // Tests
     testImplementation(libs.junit)

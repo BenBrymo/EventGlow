@@ -171,6 +171,16 @@ fun BottomNavGraph(
         composable(RoutesUser.SETTINGS) {
             UserSettingsScreen(navController = navController)
         }
+
+        composable(
+            route = "user_events_section/{sectionType}",
+            arguments = listOf(navArgument("sectionType") { type = NavType.StringType })
+        ) { backStackEntry ->
+            UserEventsSectionScreen(
+                navController = navController,
+                sectionType = backStackEntry.arguments?.getString("sectionType").orEmpty()
+            )
+        }
     }
 }
 

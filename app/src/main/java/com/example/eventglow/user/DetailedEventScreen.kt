@@ -72,6 +72,8 @@ fun DetailedEventScreen(
     val verifiedTransaction by paymentViewModel.latestVerifiedTransaction.collectAsState()
 
     var isLoading by remember { mutableStateOf(false) }
+    var isCommittingPurchase by remember { mutableStateOf(false) }
+    var pendingTransactionReference by rememberSaveable { mutableStateOf("") }
 
     Log.d("AuthorizationResult", "Authorization result: $authorizationResult")
     Log.d("VerificationResult", "Verification result: $verificationResult")
@@ -136,6 +138,7 @@ fun DetailedEventScreen(
                         "AuthorizationResult",
                         "Payment authorized, opening URL: ${(authorizationResult as AuthorizationResult.Success).authorizationUrl}"
                     )
+                    pendingTransactionReference = paymentViewModel.transactionReference.orEmpty()
                     val intent = Intent(Intent.ACTION_VIEW).apply {
                         data =
                             android.net.Uri.parse((authorizationResult as AuthorizationResult.Success).authorizationUrl)
@@ -178,21 +181,48 @@ fun DetailedEventScreen(
                 is VerificationResult.Success -> {
                     isLoading = false
                     Log.d("VerificationResult", "Payment verified successfully, redirecting to Tickets Screen.")
-
-                    val ticketReference = paymentViewModel.transactionReference
+                    val verifiedReference = verifiedTransaction?.reference.orEmpty()
+                    val ticketReference = verifiedReference.ifBlank {
+                        paymentViewModel.transactionReference.orEmpty().ifBlank { pendingTransactionReference }
+                    }
                     selectedTicketType?.let { ticketType ->
+                        val normalizedTransaction = verifiedTransaction?.copy(reference = ticketReference)
+                        if (normalizedTransaction == null || ticketReference.isBlank()) {
+                            Toast.makeText(
+                                context,
+                                "Missing verified transaction reference.",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            return@let
+                        }
+
                         val boughtTicket = buildBoughtTicket(
                             event = event,
                             ticketType = ticketType,
-                            ticketReference = ticketReference ?: "",
-                            paymentTransaction = verifiedTransaction,
+                            ticketReference = ticketReference,
+                            paymentTransaction = normalizedTransaction,
                             isFreeTicket = false
                         )
-
-                        userViewModel.processBoughtTicket(boughtTicket)
-                        Log.d("DetailedEventScreen", "Processed bought ticket: $boughtTicket")
-                        showDoneButton = false
-                        navController.navigate(Routes.TICKETS_SCREEN)
+                        scope.launch {
+                            isCommittingPurchase = true
+                            val result = userViewModel.commitTicketPurchase(
+                                boughtTicket = boughtTicket,
+                                transaction = normalizedTransaction
+                            )
+                            isCommittingPurchase = false
+                            result.onSuccess {
+                                Log.d("DetailedEventScreen", "Processed bought ticket: $boughtTicket")
+                                pendingTransactionReference = ""
+                                showDoneButton = false
+                                navController.navigate(Routes.TICKETS_SCREEN)
+                            }.onFailure { error ->
+                                Toast.makeText(
+                                    context,
+                                    error.message ?: "Failed to complete purchase.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     }
                 }
 
@@ -230,6 +260,7 @@ fun DetailedEventScreen(
                 chosenTicketType = { ticketType -> selectedTicketType = ticketType },
                 onBuyTicketClicked = { ticketType, email ->
                     scope.launch {
+                        if (isCommittingPurchase) return@launch
                         if (hasBoughtTicket) {
                             Toast.makeText(
                                 context,
@@ -248,12 +279,32 @@ fun DetailedEventScreen(
                                 paymentTransaction = null,
                                 isFreeTicket = true
                             )
-                            userViewModel.processBoughtTicket(freeTicket)
-                            navController.navigate(Routes.TICKETS_SCREEN)
+                            val freeTransaction = buildFreeTransaction(
+                                ticketReference = freeReference,
+                                boughtTicket = freeTicket
+                            )
+                            isCommittingPurchase = true
+                            val result = userViewModel.commitTicketPurchase(
+                                boughtTicket = freeTicket,
+                                transaction = freeTransaction
+                            )
+                            isCommittingPurchase = false
+                            result.onSuccess {
+                                navController.navigate(Routes.TICKETS_SCREEN)
+                            }.onFailure { error ->
+                                Toast.makeText(
+                                    context,
+                                    error.message ?: "Failed to issue free ticket.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                             return@launch
                         }
 
                         if (showDoneButton) {
+                            if (pendingTransactionReference.isNotBlank()) {
+                                paymentViewModel.transactionReference = pendingTransactionReference
+                            }
                             paymentViewModel.verifyTransaction()
                         } else {
                             val safeEmail = email?.trim().orEmpty()
@@ -269,6 +320,7 @@ fun DetailedEventScreen(
                                 email = safeEmail,
                                 amount = ticketType.price.toInt().toString()
                             )
+                            pendingTransactionReference = paymentViewModel.transactionReference.orEmpty()
                         }
                     }
                 }
@@ -276,7 +328,7 @@ fun DetailedEventScreen(
         }
     }
 
-    if (isLoading) {
+    if (isLoading || isCommittingPurchase) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -793,6 +845,24 @@ private fun buildBoughtTicket(
         scannedAt = "",
         scannedByAdminId = "",
         scannedByAdminName = ""
+    )
+}
+
+private fun buildFreeTransaction(
+    ticketReference: String,
+    boughtTicket: BoughtTicket
+): Transaction {
+    return Transaction(
+        id = ticketReference,
+        status = "success",
+        reference = ticketReference,
+        amount = "0",
+        gatewayResponse = "Free ticket issued",
+        paidAt = boughtTicket.paymentPaidAt,
+        createdAt = boughtTicket.paymentCreatedAt,
+        channel = "free",
+        currency = "GHS",
+        customerEmail = boughtTicket.paymentCustomerEmail
     )
 }
 
