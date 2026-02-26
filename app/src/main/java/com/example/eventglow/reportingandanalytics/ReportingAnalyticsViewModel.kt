@@ -22,12 +22,6 @@ class ReportingAnalyticsViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
-    private val _selectedTab = MutableStateFlow(0)
-    val selectedTab: StateFlow<Int> = _selectedTab.asStateFlow()
-
     private val _allRows = MutableStateFlow<List<ReportingEventRow>>(emptyList())
     val allRows: StateFlow<List<ReportingEventRow>> = _allRows.asStateFlow()
 
@@ -74,23 +68,22 @@ class ReportingAnalyticsViewModel : ViewModel() {
         }
     }
 
-    fun onSearchQueryChange(query: String) {
-        _searchQuery.value = query
-        applyFilters()
-    }
-
-    fun onTabSelected(index: Int) {
-        _selectedTab.value = index
-        applyFilters()
-    }
-
     fun clearError() {
         _errorMessage.value = null
     }
 
     fun filterRowsByPeriod(period: ReportingPeriod, start: Date? = null, end: Date? = null): List<ReportingEventRow> {
+        return filterRowsByPeriod(_allRows.value, period, start, end)
+    }
+
+    fun filterRowsByPeriod(
+        sourceRows: List<ReportingEventRow>,
+        period: ReportingPeriod,
+        start: Date? = null,
+        end: Date? = null
+    ): List<ReportingEventRow> {
         val now = Calendar.getInstance()
-        return _allRows.value.filter { row ->
+        return sourceRows.filter { row ->
             val rowDate = parseDate(row.date) ?: return@filter false
             when (period) {
                 ReportingPeriod.DAILY -> isSameDay(rowDate, now.time)
@@ -98,8 +91,9 @@ class ReportingAnalyticsViewModel : ViewModel() {
                     val weekAgo = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -7) }.time
                     !rowDate.before(weekAgo) && !rowDate.after(now.time)
                 }
+                ReportingPeriod.DAY -> isSameDay(rowDate, now.time)
 
-                ReportingPeriod.MONTHLY -> {
+                ReportingPeriod.MONTH -> {
                     val monthAgo = Calendar.getInstance().apply { add(Calendar.MONTH, -1) }.time
                     !rowDate.before(monthAgo) && !rowDate.after(now.time)
                 }
@@ -112,21 +106,41 @@ class ReportingAnalyticsViewModel : ViewModel() {
         }
     }
 
+    fun filterRowsByMonth(
+        sourceRows: List<ReportingEventRow>,
+        month: Int,
+        year: Int
+    ): List<ReportingEventRow> {
+        return sourceRows.filter { row ->
+            val rowDate = parseDate(row.date) ?: return@filter false
+            val calendar = Calendar.getInstance().apply { time = rowDate }
+            calendar.get(Calendar.MONTH) == month && calendar.get(Calendar.YEAR) == year
+        }
+    }
+
+    fun filterRowsByRange(
+        sourceRows: List<ReportingEventRow>,
+        start: Date,
+        end: Date
+    ): List<ReportingEventRow> {
+        return sourceRows.filter { row ->
+            val rowDate = parseDate(row.date) ?: return@filter false
+            !rowDate.before(start) && !rowDate.after(end)
+        }
+    }
+
+    fun filterRowsByDay(
+        sourceRows: List<ReportingEventRow>,
+        day: Date
+    ): List<ReportingEventRow> {
+        return sourceRows.filter { row ->
+            val rowDate = parseDate(row.date) ?: return@filter false
+            isSameDay(rowDate, day)
+        }
+    }
+
     private fun applyFilters() {
-        val query = _searchQuery.value.trim()
-        val tab = _selectedTab.value
-        val base = when (tab) {
-            0 -> _allRows.value.filter { !it.isEnded } // ongoing
-            else -> _allRows.value.filter { it.isEnded } // ended
-        }
-        _rows.value = if (query.isBlank()) {
-            base
-        } else {
-            base.filter {
-                it.title.contains(query, ignoreCase = true) ||
-                        it.date.contains(query, ignoreCase = true)
-            }
-        }
+        _rows.value = _allRows.value
     }
 
     private fun parseDate(raw: String): Date? = try {
@@ -169,5 +183,5 @@ data class ReportingSummary(
 )
 
 enum class ReportingPeriod {
-    DAILY, WEEKLY, MONTHLY, RANGE
+    DAILY, WEEKLY, DAY, MONTH, RANGE
 }

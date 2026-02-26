@@ -418,7 +418,7 @@ class EventsManagementViewModel : ViewModel() {
         }
     }
 
-    suspend fun checkIfEventNameIsTaken(eventName: String, onResult: (Boolean) -> Unit) {
+    fun checkIfEventNameIsTaken(eventName: String, onResult: (Boolean) -> Unit) {
         try {
             val firestore = FirebaseFirestore.getInstance()
 

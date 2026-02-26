@@ -135,6 +135,8 @@ fun AdminHomeScreen(
             profileImageUrl = profileImageUrl,
             upcomingEvents = uiState.upcomingEvents,
             todayEvents = uiState.todayEvents,
+            liveEvents = uiState.liveEvents,
+            endedEvents = uiState.endedEvents,
             totalEvents = uiState.totalEvents,
             totalTickets = uiState.totalTickets,
             loadState = loadState,
@@ -161,6 +163,8 @@ fun AdminHomeContent(
     profileImageUrl: String? = null,
     upcomingEvents: List<Event> = emptyList(),
     todayEvents: List<Event> = emptyList(),
+    liveEvents: List<Event> = emptyList(),
+    endedEvents: List<Event> = emptyList(),
     totalEvents: Int = 0,
     totalTickets: Int = 0,
     loadState: LoadState = LoadState.SUCCESS,
@@ -240,6 +244,12 @@ fun AdminHomeContent(
                         Spacer(Modifier.height(24.dp))
 
                         EventsSection(
+                            title = "Live Events",
+                            events = liveEvents,
+                            onEventClick = onEventClick
+                        )
+
+                        EventsSection(
                             title = "Upcoming Events",
                             events = upcomingEvents,
                             onEventClick = onEventClick
@@ -250,6 +260,14 @@ fun AdminHomeContent(
                         EventsSection(
                             title = "Events Today",
                             events = todayEvents,
+                            onEventClick = onEventClick
+                        )
+
+                        Spacer(Modifier.height(24.dp))
+
+                        EventsSection(
+                            title = "Ended Events",
+                            events = endedEvents,
                             onEventClick = onEventClick
                         )
                     }
@@ -545,6 +563,8 @@ fun AdminHomeScreenLightPreview() {
                 Event(id = "2", eventName = "Tech Expo", imageUri = "", ticketTypes = emptyList())
             ),
             todayEvents = emptyList(),
+            liveEvents = emptyList(),
+            endedEvents = emptyList(),
             totalEvents = 12,
             totalTickets = 420,
             loadState = LoadState.SUCCESS,
@@ -564,6 +584,8 @@ fun AdminHomeScreenDarkPreview() {
                 Event(id = "2", eventName = "Tech Expo", imageUri = "", ticketTypes = emptyList())
             ),
             todayEvents = emptyList(),
+            liveEvents = emptyList(),
+            endedEvents = emptyList(),
             totalEvents = 12,
             totalTickets = 420,
             loadState = LoadState.SUCCESS,

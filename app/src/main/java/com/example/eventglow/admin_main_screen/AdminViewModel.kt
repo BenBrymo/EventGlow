@@ -141,6 +141,8 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                     }
                     .sortedByDescending { it.createdAtMs }
 
+                val liveEvents = todayEvents
+
             val upcomingEvents = events
                 .filter { event ->
                     val start = parseDateOrNull(event.startDate) ?: return@filter false
@@ -152,11 +154,22 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                 .sortedByDescending { it.createdAtMs }
                 .take(6)
 
+                val endedEvents = events
+                    .filter { event ->
+                        val end = parseDateOrNull(event.endDate)
+                            ?: parseDateOrNull(event.startDate)
+                            ?: return@filter false
+                        end.before(today)
+                    }
+                    .sortedByDescending { it.createdAtMs }
+
                 _adminHomeUiState.value = AdminHomeUiState(
                     totalEvents = events.size,
                     totalTickets = boughtTicketsCount,
                     upcomingEvents = upcomingEvents,
-                    todayEvents = todayEvents
+                    todayEvents = todayEvents,
+                    liveEvents = liveEvents,
+                    endedEvents = endedEvents
                 )
                 setSuccess()
             } finally {
@@ -330,7 +343,9 @@ data class AdminHomeUiState(
     val totalEvents: Int = 0,
     val totalTickets: Int = 0,
     val upcomingEvents: List<Event> = emptyList(),
-    val todayEvents: List<Event> = emptyList()
+    val todayEvents: List<Event> = emptyList(),
+    val liveEvents: List<Event> = emptyList(),
+    val endedEvents: List<Event> = emptyList()
 )
 
 data class AdminProfileFallbackData(
