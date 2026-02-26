@@ -2,6 +2,7 @@ package com.example.eventglow.dataClass
 
 import kotlinx.serialization.Serializable
 
+
 @Serializable
 data class Event(
     var id: String = "",

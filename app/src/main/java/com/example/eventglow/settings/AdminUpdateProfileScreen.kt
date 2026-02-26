@@ -10,7 +10,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,7 +18,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.eventglow.R
+import com.example.eventglow.common.LoadState
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BorderStrong
 import com.example.eventglow.ui.theme.BrandPrimary
@@ -30,14 +31,24 @@ import com.example.eventglow.ui.theme.TextSecondary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminUpdateProfileScreen(
-    name: String = "Admin User",
-    email: String = "admin@eventglow.com",
     onBack: () -> Unit = {},
     onDeletePhoto: () -> Unit = {},
-    onSave: (String, String) -> Unit = { _, _ -> }
+    onSave: (String, String) -> Unit = { _, _ -> },
+    viewModel: UpdateProfileViewModel = viewModel()
 ) {
-    var fullName by rememberSaveable { mutableStateOf(name) }
-    var userEmail by rememberSaveable { mutableStateOf(email) }
+    val fullName by viewModel.fullName.collectAsState()
+    val userEmail by viewModel.email.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
+    val loadState by viewModel.loadState.collectAsState()
+    val isSaving = loadState == LoadState.LOADING
+
+    LaunchedEffect(successMessage) {
+        if (!successMessage.isNullOrBlank()) {
+            onSave(fullName, userEmail)
+            viewModel.clearSuccessMessage()
+        }
+    }
 
     Scaffold(
         containerColor = Background,
@@ -55,23 +66,50 @@ fun AdminUpdateProfileScreen(
             Spacer(Modifier.height(32.dp))
             AdminUpdateProfileTextField(
                 value = fullName,
-                onValueChange = { fullName = it },
+                onValueChange = viewModel::onFullNameChange,
                 placeholder = "Full name"
             )
             Spacer(Modifier.height(16.dp))
             AdminUpdateProfileTextField(
                 value = userEmail,
-                onValueChange = { userEmail = it },
+                onValueChange = viewModel::onEmailChange,
                 placeholder = "Email address"
             )
+            if (!errorMessage.isNullOrBlank()) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = errorMessage.orEmpty(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (!successMessage.isNullOrBlank()) {
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    text = successMessage.orEmpty(),
+                    color = BrandPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             Spacer(Modifier.height(32.dp))
             Button(
-                onClick = { onSave(fullName, userEmail) },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                onClick = viewModel::saveProfile,
+                enabled = !isSaving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 shape = RoundedCornerShape(28.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary)
             ) {
-                Text("Save", color = TextPrimary, style = MaterialTheme.typography.labelLarge)
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp),
+                        color = TextPrimary
+                    )
+                } else {
+                    Text("Save", color = TextPrimary, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
@@ -152,4 +190,3 @@ private fun AdminUpdateProfileTextField(
 fun AdminUpdateProfileScreenPreview() {
     AdminUpdateProfileScreen()
 }
-

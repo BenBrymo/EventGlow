@@ -23,7 +23,6 @@ import androidx.navigation.NavController
 import com.example.eventglow.MainActivityViewModel
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.navigation.navigateAndClearTo
-import com.example.eventglow.notifications.FirestoreNotificationSenderViewModel
 import com.example.eventglow.notifications.NotificationSettingsViewModel
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BorderStrong
@@ -37,30 +36,17 @@ import com.example.eventglow.ui.theme.TextSecondary
 fun AdminSettingsScreen(
     navController: NavController,
     mainActivityViewModel: MainActivityViewModel = viewModel(),
-    notificationSettingsViewModel: NotificationSettingsViewModel = viewModel(),
-    senderViewModel: FirestoreNotificationSenderViewModel = viewModel()
+    notificationSettingsViewModel: NotificationSettingsViewModel = viewModel()
 ) {
     val notificationsEnabled by notificationSettingsViewModel.notificationsEnabled.collectAsState()
     val isUpdatingNotificationPreference by notificationSettingsViewModel.isUpdating.collectAsState()
     val notificationError by notificationSettingsViewModel.errorMessage.collectAsState()
-    val isSendingPush by senderViewModel.isSending.collectAsState()
-    val pushError by senderViewModel.errorMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var pushTitle by remember { mutableStateOf("") }
-    var pushBody by remember { mutableStateOf("") }
-    var testEventId by remember { mutableStateOf("") }
-    var targetRole by remember { mutableStateOf("all") }
 
     LaunchedEffect(notificationError) {
         val message = notificationError ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(message)
         notificationSettingsViewModel.clearError()
-    }
-
-    LaunchedEffect(pushError) {
-        val message = pushError ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(message)
-        senderViewModel.clearError()
     }
 
     Scaffold(
@@ -78,30 +64,6 @@ fun AdminSettingsScreen(
             onToggleNotifications = { notificationSettingsViewModel.updateNotificationPreference(it) },
             onSupport = { navController.navigate(Routes.ADMIN_SUPPORT_SCREEN) },
             onHelpCenter = { navController.navigate(Routes.ADMIN_HELP_CENTER_SCREEN) },
-            pushTitle = pushTitle,
-            onPushTitleChange = { pushTitle = it },
-            pushBody = pushBody,
-            onPushBodyChange = { pushBody = it },
-            testEventId = testEventId,
-            onTestEventIdChange = { testEventId = it },
-            targetRole = targetRole,
-            onTargetRoleChange = { targetRole = it },
-            isSendingPush = isSendingPush,
-            onSendTestPush = {
-                val normalizedRole = targetRole.trim().lowercase()
-                val targetRoute = if (normalizedRole == "admin") {
-                    "detailed_event_screen_admin"
-                } else {
-                    "detailed_event_screen"
-                }
-                senderViewModel.sendNotificationToRole(
-                    title = pushTitle,
-                    body = pushBody,
-                    targetRole = targetRole,
-                    route = targetRoute,
-                    eventId = testEventId
-                )
-            },
             onLogout = {
                 mainActivityViewModel.signOut(
                     onSuccess = {
@@ -126,16 +88,6 @@ private fun AdminSettingsContent(
     onToggleNotifications: (Boolean) -> Unit,
     onSupport: () -> Unit,
     onHelpCenter: () -> Unit,
-    pushTitle: String,
-    onPushTitleChange: (String) -> Unit,
-    pushBody: String,
-    onPushBodyChange: (String) -> Unit,
-    testEventId: String,
-    onTestEventIdChange: (String) -> Unit,
-    targetRole: String,
-    onTargetRoleChange: (String) -> Unit,
-    isSendingPush: Boolean,
-    onSendTestPush: () -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -195,65 +147,7 @@ private fun AdminSettingsContent(
         )
 
         Spacer(Modifier.height(20.dp))
-
-        AdminSettingsSectionTitle("Push Notifications")
-
-        OutlinedTextField(
-            value = pushTitle,
-            onValueChange = onPushTitleChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Notification title") },
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = pushBody,
-            onValueChange = onPushBodyChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Notification body") },
-            minLines = 2
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = targetRole,
-            onValueChange = onTargetRoleChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Target role (all/user/admin)") },
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        OutlinedTextField(
-            value = testEventId,
-            onValueChange = onTestEventIdChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Event ID for deep link (optional)") },
-            singleLine = true
-        )
-
-        Spacer(Modifier.height(10.dp))
-
-        Button(
-            onClick = onSendTestPush,
-            enabled = !isSendingPush,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (isSendingPush) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-            Text("Send Test Push")
-        }
-
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(12.dp))
 
         Button(
             onClick = onLogout,
@@ -431,16 +325,6 @@ fun AdminSettingsScreenLightPreview() {
             onToggleNotifications = {},
             onSupport = {},
             onHelpCenter = {},
-            pushTitle = "New Event",
-            onPushTitleChange = {},
-            pushBody = "Tap to open event details",
-            onPushBodyChange = {},
-            testEventId = "sample-event-id",
-            onTestEventIdChange = {},
-            targetRole = "all",
-            onTargetRoleChange = {},
-            isSendingPush = false,
-            onSendTestPush = {},
             onLogout = {}
         )
     }
@@ -458,16 +342,6 @@ fun AdminSettingsScreenDarkPreview() {
             onToggleNotifications = {},
             onSupport = {},
             onHelpCenter = {},
-            pushTitle = "New Event",
-            onPushTitleChange = {},
-            pushBody = "Tap to open event details",
-            onPushBodyChange = {},
-            testEventId = "sample-event-id",
-            onTestEventIdChange = {},
-            targetRole = "all",
-            onTargetRoleChange = {},
-            isSendingPush = false,
-            onSendTestPush = {},
             onLogout = {}
         )
     }

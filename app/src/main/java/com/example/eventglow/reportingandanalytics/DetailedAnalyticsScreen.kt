@@ -1,357 +1,126 @@
 package com.example.eventglow.reportingandanalytics
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.eventglow.ui.theme.AccentOrange
 import com.example.eventglow.ui.theme.BackgroundBlack
-import com.example.eventglow.ui.theme.FieldBorderGray
+import com.example.eventglow.ui.theme.CardBlack
 import com.example.eventglow.ui.theme.HintGray
+import java.util.Calendar
 
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailedAnalyticsScreen() {
-
+fun DetailedAnalyticsScreen(
+    viewModel: ReportingAnalyticsViewModel,
+    onClose: () -> Unit
+) {
     var selectedTab by remember { mutableStateOf(0) }
+    val period = when (selectedTab) {
+        0 -> ReportingPeriod.DAILY
+        1 -> ReportingPeriod.WEEKLY
+        2 -> ReportingPeriod.MONTHLY
+        else -> ReportingPeriod.RANGE
+    }
+
+    val rangeStart = remember {
+        Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -30) }.time
+    }
+    val rangeEnd = remember { Calendar.getInstance().time }
+    val rows = viewModel.filterRowsByPeriod(period, rangeStart, rangeEnd)
+    val revenue = rows.sumOf { it.revenue }
+    val sold = rows.sumOf { it.sold }
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .background(BackgroundBlack)
-            .padding(horizontal = 20.dp)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        AnalyticsTopBar()
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        AnalyticsTabs(
-            selectedTab = selectedTab,
-            onTabSelected = { selectedTab = it }
-        )
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        StatsRow()
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Conditional Filters
-        when (selectedTab) {
-            2 -> MonthlyFilter() // Monthly
-            3 -> RangeFilter()   // Range
+        Text("Detailed Analytics", color = Color.White)
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = CardBlack,
+            indicator = { tabPositions ->
+                TabRowDefaults.Indicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = AccentOrange,
+                    height = 3.dp
+                )
+            }
+        ) {
+            listOf("Daily", "Weekly", "Monthly", "Range").forEachIndexed { index, label ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(label, color = if (selectedTab == index) AccentOrange else HintGray) }
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-
-        ChartPlaceholder()
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        ExportButton()
-
-        Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-
-@Composable
-fun AnalyticsTopBar() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-
-        Text(
-            text = "Detailed Analytics",
-            style = MaterialTheme.typography.titleLarge,
-            color = Color.White
-        )
-
-        IconButton(onClick = { }) {
-            Icon(
-                imageVector = Icons.Default.Refresh,
-                contentDescription = null,
-                tint = Color.White
-            )
-        }
-    }
-}
-
-
-@Composable
-fun AnalyticsTabs(
-    selectedTab: Int,
-    onTabSelected: (Int) -> Unit
-) {
-
-    val tabs = listOf("Daily", "Weekly", "Monthly", "Range")
-
-    TabRow(
-        selectedTabIndex = selectedTab,
-        containerColor = Color(0xFF3A3A3A),
-        indicator = { tabPositions ->
-            TabRowDefaults.Indicator(
-                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                color = AccentOrange,
-                height = 3.dp
-            )
-        }
-    ) {
-        tabs.forEachIndexed { index, title ->
-            Tab(
-                selected = selectedTab == index,
-                onClick = { onTabSelected(index) },
-                text = {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = if (selectedTab == index) AccentOrange else HintGray
-                    )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = CardBlack), modifier = Modifier.weight(1f)) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Revenue", color = Color.White)
+                    Spacer(Modifier.height(4.dp))
+                    Text("GHS ${String.format("%.2f", revenue)}", color = AccentOrange)
                 }
-            )
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = CardBlack), modifier = Modifier.weight(1f)) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Tickets Sold", color = Color.White)
+                    Spacer(Modifier.height(4.dp))
+                    Text("$sold", color = AccentOrange)
+                }
+            }
         }
-    }
-}
 
-@Composable
-fun StatsRow() {
-
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-
-        StatCard(
-            title = "Revenue",
-            value = "0.00"
-        )
-
-        StatCard(
-            title = "Tickets Sold",
-            value = "0"
-        )
-    }
-}
-
-@Composable
-fun StatCard(
-    title: String,
-    value: String
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0xFF3A3A3A))
-            .padding(20.dp)
-    ) {
-        Column {
-
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = Color.White
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                color = AccentOrange
-            )
+        if (rows.isEmpty()) {
+            Text("No chart data for selected period.", color = HintGray)
+        } else {
+            Card(colors = CardDefaults.cardColors(containerColor = CardBlack), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rows.take(8).forEach { row ->
+                        Text(
+                            text = "${row.title} - Sold ${row.sold} - GHS ${String.format("%.2f", row.revenue)}",
+                            color = Color.White
+                        )
+                    }
+                }
+            }
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun MonthlyFilter() {
-
-    Row(
-        horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-
-        FilterChip(label = "Pick Month")
 
         Button(
-            onClick = { },
+            onClick = onClose,
+            modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AccentOrange),
             shape = RoundedCornerShape(50)
-        ) {
-            Text("Apply", color = Color.White)
-        }
+        ) { Text("Close", color = Color.White) }
+        Spacer(modifier = Modifier.height(8.dp))
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun RangeFilter() {
-
-    Column {
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-
-            FilterChip(label = "2026-02-14")
-
-            Text(
-                text = "→",
-                color = HintGray
-            )
-
-            FilterChip(label = "2026-02-14")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = { },
-            colors = ButtonDefaults.buttonColors(containerColor = AccentOrange),
-            shape = RoundedCornerShape(50)
-        ) {
-            Text("Apply", color = Color.White)
-        }
-    }
-}
-
-@Composable
-fun FilterChip(label: String) {
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF3A3A3A))
-            .border(1.dp, FieldBorderGray, RoundedCornerShape(8.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-
-            Icon(
-                imageVector = Icons.Default.DateRange,
-                contentDescription = null,
-                tint = AccentOrange,
-                modifier = Modifier.size(18.dp)
-            )
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Text(
-                text = label,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-    }
-}
-
-
-@Composable
-fun ChartPlaceholder() {
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(180.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF4A4A4A)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "No chart data",
-            color = HintGray,
-            style = MaterialTheme.typography.bodyLarge
-        )
-    }
-}
-
-
-@Composable
-fun ExportButton() {
-
-    Button(
-        onClick = { },
-        colors = ButtonDefaults.buttonColors(
-            containerColor = AccentOrange
-        ),
-        shape = RoundedCornerShape(50),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(58.dp)
-    ) {
-        Text(
-            text = "Export to Excel",
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White
-        )
-    }
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun DetailedAnalyticsScreenPreview() {
-    DetailedAnalyticsScreen()
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun AnalyticsTopBarPreview() {
-    AnalyticsTopBar()
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun AnalyticsTabsPreview() {
-    AnalyticsTabs(
-        selectedTab = 1,
-        onTabSelected = {}
-    )
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun StatsRowPreview() {
-    StatsRow()
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun MonthlyFilterPreview() {
-    MonthlyFilter()
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun RangeFilterPreview() {
-    RangeFilter()
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun ChartPlaceholderPreview() {
-    ChartPlaceholder()
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun ExportButtonPreview() {
-    ExportButton()
 }

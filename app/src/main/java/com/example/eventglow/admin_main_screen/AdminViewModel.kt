@@ -100,7 +100,8 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                     isDraft = data["isDraft"] as? Boolean ?: false,
                     isImportant = data["isImportant"] as? Boolean ?: false,
                     eventOrganizer = data["eventOrganizer"] as? String ?: "",
-                    eventDescription = data["eventDescription"] as? String ?: ""
+                    eventDescription = data["eventDescription"] as? String ?: "",
+                    createdAtMs = (data["createdAtMs"] as? Number)?.toLong() ?: 0L
                 )
             }
             val boughtTicketsResult = firestore.collection("boughtTickets")
@@ -132,11 +133,13 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
             val nextSixDaysEndCal = (todayCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 6) }
             val nextSixDaysEnd = nextSixDaysEndCal.time
 
-            val todayEvents = events.filter { event ->
-                val start = parseDateOrNull(event.startDate) ?: return@filter false
-                val end = parseDateOrNull(event.endDate) ?: start
-                !today.before(start) && !today.after(end)
-            }
+                val todayEvents = events
+                    .filter { event ->
+                        val start = parseDateOrNull(event.startDate) ?: return@filter false
+                        val end = parseDateOrNull(event.endDate) ?: start
+                        !today.before(start) && !today.after(end)
+                    }
+                    .sortedByDescending { it.createdAtMs }
 
             val upcomingEvents = events
                 .filter { event ->
@@ -146,7 +149,7 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                     !end.before(tomorrow) && !start.after(nextSixDaysEnd)
                 }
                 .filterNot { event -> todayEvents.any { it.id == event.id } }
-                .sortedBy { parseDateOrNull(it.startDate) ?: Date(Long.MAX_VALUE) }
+                .sortedByDescending { it.createdAtMs }
                 .take(6)
 
                 _adminHomeUiState.value = AdminHomeUiState(

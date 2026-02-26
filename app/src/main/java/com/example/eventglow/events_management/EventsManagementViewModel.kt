@@ -8,8 +8,8 @@ import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.EventCategory
+import com.example.eventglow.dataClass.EventFilterCriteria
 import com.example.eventglow.dataClass.TicketType
-import com.example.eventts.dataClass.EventFilterCriteria
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
@@ -91,6 +91,7 @@ class EventsManagementViewModel : ViewModel() {
             }
     }
 
+
     fun addEventCategory(
         categoryName: String,
         onSuccess: (String) -> Unit,
@@ -128,6 +129,7 @@ class EventsManagementViewModel : ViewModel() {
                 onFailure(exception.message ?: "Failed to add category.")
             }
     }
+
 
     private fun filterEvents(query: String) {
         val filteredList = _events.value.filter { event ->

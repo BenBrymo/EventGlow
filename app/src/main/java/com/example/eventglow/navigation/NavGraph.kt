@@ -24,6 +24,7 @@ import com.example.eventglow.events_management.FilterSearchScreenAdmin
 import com.example.eventglow.events_management.FilteredResultScreenAdmin
 import com.example.eventglow.events_management.ManageEventsScreen
 import com.example.eventglow.notifications.NotificationsScreen
+import com.example.eventglow.reportingandanalytics.AnalyticsScreen
 import com.example.eventglow.settings.AdminChangePasswordScreen
 import com.example.eventglow.settings.AdminHelpCenterScreen
 import com.example.eventglow.settings.AdminSettingsScreen
@@ -215,9 +216,9 @@ fun NavGraph(navController: NavHostController) {
             UserManagementSearchScreen(navController = navController)
         }
 
-//        composable(Routes.REPORTING_AND_ANALYTICS) {
-//            ReportingAndAnalyticsScreen()
-//        }
+        composable(Routes.REPORTING_AND_ANALYTICS) {
+            AnalyticsScreen()
+        }
 
         composable(Routes.SETTINGS) {
             AdminSettingsScreen(navController = navController)

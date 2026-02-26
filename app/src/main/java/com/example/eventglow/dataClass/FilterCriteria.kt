@@ -1,4 +1,4 @@
-package com.example.eventts.dataClass
+package com.example.eventglow.dataClass
 
 data class EventFilterCriteria(
     val eventStatus: String = "",

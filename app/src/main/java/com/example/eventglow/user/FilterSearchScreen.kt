@@ -27,7 +27,6 @@ import java.util.*
 @Composable
 fun FilterSearchScreen(
     navController: NavController,
-    viewModel: UserViewModel = viewModel(),
     userPreferences: UserPreferences = viewModel()
 ) {
 

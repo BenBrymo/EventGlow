@@ -14,6 +14,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.eventglow.common.LoadState
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BorderDefault
 import com.example.eventglow.ui.theme.BorderSubtle
@@ -27,14 +29,26 @@ import com.example.eventglow.ui.theme.TextSecondary
 @Composable
 fun AdminChangePasswordScreen(
     onBackClick: () -> Unit = {},
-    onSaveClick: () -> Unit = {}
+    onSaveClick: () -> Unit = {},
+    viewModel: ChangePasswordViewModel = viewModel()
 ) {
-    var currentPassword by remember { mutableStateOf("") }
-    var newPassword by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var showCurrent by remember { mutableStateOf(false) }
-    var showNew by remember { mutableStateOf(false) }
-    var showConfirm by remember { mutableStateOf(false) }
+    val currentPassword by viewModel.currentPassword.collectAsState()
+    val newPassword by viewModel.newPassword.collectAsState()
+    val confirmPassword by viewModel.confirmPassword.collectAsState()
+    val showCurrent by viewModel.showCurrent.collectAsState()
+    val showNew by viewModel.showNew.collectAsState()
+    val showConfirm by viewModel.showConfirm.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val successMessage by viewModel.successMessage.collectAsState()
+    val loadState by viewModel.loadState.collectAsState()
+    val isSaving = loadState == LoadState.LOADING
+
+    LaunchedEffect(successMessage) {
+        if (!successMessage.isNullOrBlank()) {
+            onSaveClick()
+            viewModel.clearSuccessMessage()
+        }
+    }
 
     Scaffold(
         containerColor = Background,
@@ -62,35 +76,62 @@ fun AdminChangePasswordScreen(
         ) {
             AdminPasswordField(
                 value = currentPassword,
-                onValueChange = { currentPassword = it },
+                onValueChange = viewModel::onCurrentPasswordChanged,
                 label = "Current Password",
                 visible = showCurrent,
-                onVisibilityToggle = { showCurrent = !showCurrent }
+                onVisibilityToggle = viewModel::toggleShowCurrent
             )
             Spacer(modifier = Modifier.height(16.dp))
             AdminPasswordField(
                 value = newPassword,
-                onValueChange = { newPassword = it },
+                onValueChange = viewModel::onNewPasswordChanged,
                 label = "New Password",
                 visible = showNew,
-                onVisibilityToggle = { showNew = !showNew }
+                onVisibilityToggle = viewModel::toggleShowNew
             )
             Spacer(modifier = Modifier.height(16.dp))
             AdminPasswordField(
                 value = confirmPassword,
-                onValueChange = { confirmPassword = it },
+                onValueChange = viewModel::onConfirmPasswordChanged,
                 label = "Confirm New Password",
                 visible = showConfirm,
-                onVisibilityToggle = { showConfirm = !showConfirm }
+                onVisibilityToggle = viewModel::toggleShowConfirm
             )
+            if (!errorMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = errorMessage.orEmpty(),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            if (!successMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = successMessage.orEmpty(),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             Spacer(modifier = Modifier.height(32.dp))
             Button(
-                onClick = onSaveClick,
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                onClick = viewModel::changePassword,
+                enabled = !isSaving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 shape = RoundedCornerShape(28.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = SurfaceLevel3, contentColor = TextSecondary)
             ) {
-                Text("Save", style = MaterialTheme.typography.labelLarge)
+                if (isSaving) {
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(20.dp),
+                        color = TextPrimary
+                    )
+                } else {
+                    Text("Save", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
@@ -140,4 +181,3 @@ private fun AdminPasswordField(
 fun AdminChangePasswordScreenPreview() {
     AdminChangePasswordScreen()
 }
-

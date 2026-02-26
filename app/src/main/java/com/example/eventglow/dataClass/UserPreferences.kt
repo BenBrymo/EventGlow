@@ -123,6 +123,13 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun updateUserEmail(newEmail: String) {
+        with(sharedPreferences.edit()) {
+            putString("USER_EMAIL", newEmail)
+            apply()
+        }
+    }
+
     fun updateProfileImageUrl(newProfileImageUrl: String?) {
         try {
             with(sharedPreferences.edit()) {

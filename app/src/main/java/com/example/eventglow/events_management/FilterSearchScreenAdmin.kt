@@ -21,8 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.eventglow.dataClass.EventFilterCriteria
 import com.example.eventglow.navigation.Routes
-import com.example.eventts.dataClass.EventFilterCriteria
 import java.util.*
 
 
