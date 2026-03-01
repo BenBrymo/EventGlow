@@ -172,6 +172,33 @@ fun BottomNavGraph(
             UserSettingsScreen(navController = navController)
         }
 
+        composable(RoutesUser.UPDATE_PROFILE) {
+            UpdateProfileScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(RoutesUser.CHANGE_PASSWORD) {
+            ChangePasswordScreen(
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(RoutesUser.SUPPORT) {
+            SupportScreen(
+                onBackClick = { navController.popBackStack() },
+                onHelpCenterClick = { navController.navigate(RoutesUser.HELP_CENTER) }
+            )
+        }
+
+        composable(RoutesUser.TRANSACTIONS) {
+            TransactionsScreen(navController = navController)
+        }
+
+        composable(RoutesUser.HELP_CENTER) {
+            HelpCenterScreen(navController = navController)
+        }
+
         composable(
             route = "user_events_section/{sectionType}",
             arguments = listOf(navArgument("sectionType") { type = NavType.StringType })

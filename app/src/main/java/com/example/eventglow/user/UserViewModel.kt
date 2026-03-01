@@ -149,12 +149,12 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                             TicketType(
                                 name = it["name"] as? String ?: "",
                                 price = (it["price"] as? Number)?.toDouble() ?: 0.0,
-                                availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0
+                                availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0,
+                                isFree = it["isFree"] as? Boolean ?: false
                             )
                         } ?: listOf(),
                         imageUri = data["imageUri"] as? String ?: "",
                         isDraft = data["isDraft"] as? Boolean ?: false,
-                        isImportant = data["isImportant"] as? Boolean ?: false,
                         eventOrganizer = data["eventOrganizer"] as? String ?: "",
                         eventDescription = data["eventDescription"] as? String ?: ""
                     )
@@ -214,13 +214,14 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                             TicketType(
                                 name = it["name"] as? String ?: "",
                                 price = (it["price"] as? Number)?.toDouble() ?: 0.0,
-                                availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0
+                                availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0,
+                                isFree = it["isFree"] as? Boolean ?: false
                             )
                         } ?: listOf(),
                         imageUri = data["imageUri"] as? String ?: "",
                         isDraft = data["isDraft"] as? Boolean ?: false,
                         eventOrganizer = data["eventOrganizer"] as? String ?: "",
-                        eventDescription = data["eventDescription"] as? String ?: "",
+                        eventDescription = data["eventDescription"] as? String ?: ""
                     )
 
                     Log.d("FirestoreEvent", "Event ID: ${event.id}, Is Draft: ${event.isDraft}")
@@ -264,11 +265,12 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                         ticketTypes = (eventMap["ticketTypes"] as? List<Map<String, Any>>)?.map { ticketMap ->
                             TicketType(
                                 name = ticketMap["name"] as? String ?: "",
-                                price = ticketMap["price"] as? Double ?: 0.0,
-                                availableTickets = ticketMap["availableTickets"] as? Int ?: 0
+                                price = (ticketMap["price"] as? Number)?.toDouble() ?: 0.0,
+                                availableTickets = (ticketMap["availableTickets"] as? Number)?.toInt() ?: 0,
+                                isFree = ticketMap["isFree"] as? Boolean ?: false
                             )
                         } ?: emptyList(),
-                        imageUri = eventMap["imageUri"] as? String,
+                        imageUri = eventMap["imageUri"] as? String ?: "",
                         isDraft = eventMap["isDraft"] as? Boolean ?: false,
                         eventOrganizer = eventMap["eventOrganizer"] as? String ?: "",
                         eventDescription = eventMap["eventDescription"] as? String ?: ""
@@ -309,8 +311,9 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                         ticketTypes = (eventMap["ticketTypes"] as? List<Map<String, Any>>)?.map { ticketMap ->
                             TicketType(
                                 name = ticketMap["name"] as? String ?: "",
-                                price = ticketMap["price"] as? Double ?: 0.0,
-                                availableTickets = ticketMap["availableTickets"] as? Int ?: 0
+                                price = (ticketMap["price"] as? Number)?.toDouble() ?: 0.0,
+                                availableTickets = (ticketMap["availableTickets"] as? Number)?.toInt() ?: 0,
+                                isFree = ticketMap["isFree"] as? Boolean ?: false
                             )
                         } ?: emptyList(),
                         imageUri = eventMap["imageUri"] as? String ?: "",
@@ -334,6 +337,29 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         val hasTicket = _boughtTickets.value.any { it.eventId == eventId }
         Log.d("UserViewModel", "Has user bought ticket for event $eventId: $hasTicket")
         return hasTicket
+    }
+
+    fun updateEventStatus(eventId: String, newStatus: String) {
+        val normalizedStatus = newStatus.trim().lowercase(Locale.getDefault())
+        if (eventId.isBlank() || normalizedStatus.isBlank()) return
+
+        firestore.collection("events")
+            .document(eventId)
+            .update("eventStatus", normalizedStatus)
+            .addOnSuccessListener {
+                Log.d("UserViewModel", "Event status updated: $eventId -> $normalizedStatus")
+            }
+            .addOnFailureListener { e ->
+                Log.e("UserViewModel", "Failed to update event status for $eventId", e)
+            }
+    }
+
+    fun markEventOngoing(eventId: String) {
+        updateEventStatus(eventId, "ongoing")
+    }
+
+    fun markEventEnded(eventId: String) {
+        updateEventStatus(eventId, "ended")
     }
 //
 //    fun filterEventsAdvancedMatchAllCriteria(criteria: FilterCriteria) {
@@ -393,7 +419,8 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                             mapOf(
                                 "name" to (ticket.name ?: ""),
                                 "price" to (ticket.price ?: 0.0),
-                                "availableTickets" to (ticket.availableTickets ?: 0)
+                                "availableTickets" to (ticket.availableTickets ?: 0),
+                                "isFree" to ticket.isFree
                             )
                         },
                         "imageUri" to (event.imageUri ?: ""),
@@ -448,7 +475,8 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                             mapOf(
                                 "name" to (ticket.name ?: ""),
                                 "price" to (ticket.price ?: 0.0),
-                                "availableTickets" to (ticket.availableTickets ?: 0)
+                                "availableTickets" to (ticket.availableTickets ?: 0),
+                                "isFree" to ticket.isFree
                             )
                         },
                         "imageUri" to (event.imageUri ?: ""),
@@ -461,6 +489,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                     // Add the new event
                     bookmarkEvents.add(eventMap)
                     userDocRef.update("bookmarkEvents", bookmarkEvents).await()
+                    _bookmarkEvents.value = (_bookmarkEvents.value + event).distinctBy { it.id }
                     Log.d("UserViewModel", "Successfully added event ${event.eventName} to bookmarks.")
                 } else {
                     Log.d("UserViewModel", "Event ${event.eventName} is already in bookmarks.")
@@ -515,6 +544,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
                     bookmarkEvents.remove(eventToRemove)
                     Log.d("UserViewModel", "Removing event from bookmarks: $eventToRemove")
                     userDocRef.update("bookmarkEvents", bookmarkEvents).await()
+                    _bookmarkEvents.value = _bookmarkEvents.value.filterNot { it.id == event.id }
                     Log.d("UserViewModel", "Successfully deleted event ${event.eventName} from bookmarks.")
                 } else {
                     Log.d("UserViewModel", "Event ${event.eventName} not found in bookmarks.")
@@ -651,6 +681,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
             val normalizedTransaction = transaction.copy(
                 id = transaction.id.ifBlank { reference },
+                userId = transaction.userId.ifBlank { userId },
                 reference = reference
             )
 
@@ -676,6 +707,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
         val reference = ticket.transactionReference.orEmpty()
         return Transaction(
             id = reference,
+            userId = auth.currentUser?.uid.orEmpty(),
             status = ticket.paymentStatus.ifBlank { if (ticket.isFreeTicket) "success" else "" },
             reference = reference,
             amount = ticket.paymentAmount.ifBlank { if (ticket.isFreeTicket) "0" else ticket.ticketPrice },
@@ -694,6 +726,7 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
     private fun transactionToMap(transaction: Transaction): Map<String, Any?> {
         return mapOf(
             "id" to transaction.id,
+            "userId" to transaction.userId,
             "status" to transaction.status,
             "reference" to transaction.reference,
             "amount" to transaction.amount,
@@ -825,3 +858,4 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
 
 }
+

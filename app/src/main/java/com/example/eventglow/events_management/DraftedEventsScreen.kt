@@ -27,6 +27,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BorderSubtle
@@ -285,7 +286,7 @@ fun EventItemDrafted(
                         color = Color.White
                     )
                     Text(
-                        text = "${event.startDate} at ${event.eventTime}",
+                        text = "${formatDisplayDate(event.startDate)} at ${event.eventTime}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White
                     )
@@ -391,4 +392,3 @@ fun EventItemDraftedPreview() {
         onEditClick = {}
     )
 }
-

@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventglow.R
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.Background
@@ -199,12 +200,12 @@ fun FilteredResultsEventRow(event: Event, onClick: (Event) -> Unit) {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Start: ${event.startDate}",
+                text = "Start: ${formatDisplayDate(event.startDate)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary
             )
             Text(
-                text = "End: ${event.endDate}",
+                text = "End: ${formatDisplayDate(event.endDate)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary
             )

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,7 +27,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,6 +56,7 @@ import coil.compose.AsyncImage
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.events_management.EventsManagementViewModel
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.ui.theme.Divider
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,8 +78,10 @@ fun UserSearchScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = {
                     Text(
                         text = "Search",
@@ -91,14 +96,6 @@ fun UserSearchScreen(
                         )
                     }
                 },
-                actions = {
-                    IconButton(onClick = { navController.navigate(Routes.FILTER_SEARCH_SCREEN) }) {
-                        Icon(
-                            imageVector = Icons.Default.FilterList,
-                            contentDescription = "Advanced filter"
-                        )
-                    }
-                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -109,7 +106,7 @@ fun UserSearchScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
@@ -121,28 +118,6 @@ fun UserSearchScreen(
             }
 
             if (!showSearchResults) {
-                item {
-                    SectionTitle("Browse categories")
-                }
-
-                item {
-                    if (categories.isEmpty()) {
-                        Text(
-                            text = "No categories yet.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    } else {
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(categories) { category ->
-                                CategoryChip(
-                                    name = category.name,
-                                    onClick = { viewModel.onSearchQueryChange(category.name) }
-                                )
-                            }
-                        }
-                    }
-                }
 
                 item {
                     SectionTitle("Top picks")
@@ -187,6 +162,8 @@ fun UserSearchScreen(
                         event = event,
                         onClick = { navController.navigate("detailed_event_screen/${event.id}") }
                     )
+                    Spacer(Modifier.height(4.dp))
+                    Divider(color = Divider)
                 }
             }
         }
@@ -280,43 +257,6 @@ private fun CategoryChip(
     }
 }
 
-@Composable
-private fun TopPickCard(
-    event: Event,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .width(210.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column {
-            AsyncImage(
-                model = event.imageUri,
-                contentDescription = event.eventName,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-            )
-            Column(Modifier.padding(10.dp)) {
-                Text(
-                    text = event.eventName,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = event.startDate.ifBlank { "Date not set" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun EventResultRow(

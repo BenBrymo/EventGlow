@@ -195,7 +195,8 @@ private fun Map<*, *>.toEvent(): Event {
         TicketType(
             name = map["name"] as? String ?: "",
             price = (map["price"] as? Number)?.toDouble() ?: 0.0,
-            availableTickets = (map["availableTickets"] as? Number)?.toInt() ?: 0
+            availableTickets = (map["availableTickets"] as? Number)?.toInt() ?: 0,
+            isFree = (map["isFree"] as? Boolean) ?: false
         )
     }
 

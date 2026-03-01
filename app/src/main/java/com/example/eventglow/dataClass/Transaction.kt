@@ -2,6 +2,7 @@ package com.example.eventglow.dataClass
 
 data class Transaction(
     var id: String = "",
+    val userId: String = "",
     val status: String = "", // e.g., "success"
     val reference: String = "", // e.g., "rd0bz6z2wu"
     val amount: String = "", // Amount in kobo (e.g., 20000 represents 200.00 NGN)

@@ -58,6 +58,7 @@ import coil.compose.AsyncImage
 import com.example.eventglow.R
 import com.example.eventglow.common.LoadState
 import com.example.eventglow.common.SharedPreferencesViewModel
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.EventGlowTheme
@@ -535,7 +536,7 @@ fun EventCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = event.startDate.ifBlank { "Date not set" },
+                    text = event.startDate.ifBlank { "Date not set" }.let { formatDisplayDate(it) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1

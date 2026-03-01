@@ -32,6 +32,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import coil.compose.rememberAsyncImagePainter
 import com.example.eventglow.R
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.Background
@@ -319,7 +320,7 @@ fun ManageEventCard(
             ) {
 
                 Text(
-                    event.startDate,
+                    formatDisplayDate(event.startDate),
                     color = TextSecondary,
                     style = MaterialTheme.typography.bodyMedium
                 )

@@ -93,7 +93,8 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                         TicketType(
                             name = it["name"] as? String ?: "",
                             price = (it["price"] as? Number)?.toDouble() ?: 0.0,
-                            availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0
+                            availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0,
+                            isFree = (it["isFree"] as? Boolean) ?: false
                         )
                     } ?: emptyList(),
                     imageUri = data["imageUri"] as? String ?: "",

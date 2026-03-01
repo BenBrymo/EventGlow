@@ -37,9 +37,26 @@ class TransactionViewModel : ViewModel() {
             _isLoading.value = true
             _errorMessage.value = null
             try {
+                val currentUid = auth.currentUser?.uid?.trim().orEmpty()
                 val currentEmail = auth.currentUser?.email?.trim().orEmpty()
 
-                val querySnapshot = if (currentEmail.isNotBlank()) {
+                val querySnapshot = if (currentUid.isNotBlank()) {
+                    val byUserId = firestore.collection("transactions")
+                        .whereEqualTo("userId", currentUid)
+                        .get()
+                        .await()
+
+                    if (!byUserId.isEmpty) {
+                        byUserId
+                    } else if (currentEmail.isNotBlank()) {
+                        firestore.collection("transactions")
+                            .whereEqualTo("customerEmail", currentEmail)
+                            .get()
+                            .await()
+                    } else {
+                        byUserId
+                    }
+                } else if (currentEmail.isNotBlank()) {
                     firestore.collection("transactions")
                         .whereEqualTo("customerEmail", currentEmail)
                         .get()

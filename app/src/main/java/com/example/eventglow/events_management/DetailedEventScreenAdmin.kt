@@ -22,6 +22,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.TicketType
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.ui.theme.AppBlack
@@ -94,7 +95,11 @@ fun EventDetailsAdminScreen(
     }
 
     val isFreeEvent = event.ticketTypes.isNotEmpty() && event.ticketTypes.all { it.isFree || it.price <= 0.0 }
-    val dateValue = if (event.isMultiDayEvent) "${event.startDate} - ${event.endDate}" else event.startDate
+    val dateValue = if (event.isMultiDayEvent) {
+        "${formatDisplayDate(event.startDate)} - ${formatDisplayDate(event.endDate)}"
+    } else {
+        formatDisplayDate(event.startDate)
+    }
 
     Scaffold(
         containerColor = Background,

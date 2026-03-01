@@ -1,6 +1,7 @@
 package com.example.eventglow.user
 
 import android.content.res.Configuration
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -12,14 +13,17 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
+import com.example.eventglow.MainActivityViewModel
+import com.example.eventglow.navigation.Routes
+import com.example.eventglow.navigation.navigateAndClearTo
+import com.example.eventglow.notifications.NotificationSettingsViewModel
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BorderStrong
 import com.example.eventglow.ui.theme.BrandPrimary
@@ -31,104 +35,145 @@ import com.example.eventglow.ui.theme.TextSecondary
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserSettingsScreen(
-    navController: NavController
+    navController: NavController,
+    mainActivityViewModel: MainActivityViewModel = viewModel(),
+    notificationSettingsViewModel: NotificationSettingsViewModel = viewModel()
 ) {
+    val notificationsEnabled by notificationSettingsViewModel.notificationsEnabled.collectAsState()
+    val isUpdatingNotificationPreference by notificationSettingsViewModel.isUpdating.collectAsState()
+    val notificationError by notificationSettingsViewModel.errorMessage.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    var notificationsEnabled by rememberSaveable { mutableStateOf(true) }
+    LaunchedEffect(notificationError) {
+        val message = notificationError ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        notificationSettingsViewModel.clearError()
+    }
 
     Scaffold(
         containerColor = Background,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
-            SettingsTopBar(onBack = { })
+            SettingsTopBar(onBack = { navController.popBackStack() })
         }
     ) { padding ->
+        UserSettingsContent(
+            notificationsEnabled = notificationsEnabled,
+            isUpdatingNotificationPreference = isUpdatingNotificationPreference,
+            onProfileSettings = { navController.navigate(RoutesUser.UPDATE_PROFILE) },
+            onChangePassword = { navController.navigate(RoutesUser.CHANGE_PASSWORD) },
+            onToggleNotifications = { notificationSettingsViewModel.updateNotificationPreference(it) },
+            onSupport = { navController.navigate(RoutesUser.SUPPORT) },
+            onHelpCenter = { navController.navigate(RoutesUser.HELP_CENTER) },
+            onLogout = {
+                mainActivityViewModel.signOut(
+                    onSuccess = { navController.navigateAndClearTo(Routes.LOGIN_SCREEN) },
+                    onError = { error ->
+                        Log.d("UserSettingsScreen", "Logout failed: ${error.message}")
+                    }
+                )
+            },
+            modifier = Modifier.padding(padding)
+        )
+    }
+}
 
-        Column(
+@Composable
+private fun UserSettingsContent(
+    notificationsEnabled: Boolean,
+    isUpdatingNotificationPreference: Boolean,
+    onProfileSettings: () -> Unit,
+    onChangePassword: () -> Unit,
+    onToggleNotifications: (Boolean) -> Unit,
+    onSupport: () -> Unit,
+    onHelpCenter: () -> Unit,
+    onLogout: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+    ) {
+        Spacer(Modifier.height(16.dp))
+
+        SettingsSectionTitle("Account Management")
+
+        SettingsItem(
+            icon = Icons.Filled.Person,
+            title = "Profile Settings",
+            subtitle = "Update your profile information",
+            onClick = onProfileSettings
+        )
+
+        SettingsItem(
+            icon = Icons.Filled.Lock,
+            title = "Change Password",
+            subtitle = "Update your account password",
+            onClick = onChangePassword
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        SettingsSectionTitle("Notification Settings")
+
+        NotificationItem(
+            icon = Icons.Filled.Notifications,
+            title = "Notifications",
+            subtitle = "Receive notifications about events",
+            checked = notificationsEnabled,
+            enabled = !isUpdatingNotificationPreference,
+            onCheckedChange = onToggleNotifications
+        )
+
+        Spacer(Modifier.height(20.dp))
+
+        SettingsSectionTitle("Support & Feedback")
+
+        SettingsItem(
+            icon = Icons.Filled.SupportAgent,
+            title = "Contact Support",
+            subtitle = "Reach out for assistance",
+            onClick = onSupport
+        )
+
+        SettingsItem(
+            icon = Icons.Filled.Feedback,
+            title = "Help Center",
+            subtitle = "Find answers to your questions",
+            onClick = onHelpCenter
+        )
+
+        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(12.dp))
+
+        Button(
+            onClick = onLogout,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = BrandPrimary
+            )
         ) {
-
-            Spacer(Modifier.height(16.dp))
-
-            SettingsSectionTitle("Account Management")
-
-            SettingsItem(
-                icon = Icons.Filled.Person,
-                title = "Profile Settings",
-                subtitle = "Update your profile information",
-                onClick = { }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Logout,
+                contentDescription = null,
+                tint = TextPrimary
             )
 
-            SettingsItem(
-                icon = Icons.Filled.Lock,
-                title = "Change Password",
-                subtitle = "Update your account password",
-                onClick = { }
+            Spacer(Modifier.width(8.dp))
+
+            Text(
+                text = "Log Out",
+                style = MaterialTheme.typography.labelLarge,
+                color = TextPrimary
             )
-
-            Spacer(Modifier.height(20.dp))
-
-            SettingsSectionTitle("Notification Settings")
-
-            NotificationItem(
-                icon = Icons.Filled.Notifications,
-                title = "Notifications",
-                subtitle = "Receive notifications about events",
-                checked = notificationsEnabled,
-                onCheckedChange = { notificationsEnabled = it }
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            SettingsSectionTitle("Support & Feedback")
-
-            SettingsItem(
-                icon = Icons.Filled.SupportAgent,
-                title = "Contact Support",
-                subtitle = "Reach out for assistance",
-                onClick = { }
-            )
-
-            SettingsItem(
-                icon = Icons.Filled.Feedback,
-                title = "Send Feedback",
-                subtitle = "Help us improve with your feedback",
-                onClick = { }
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            Button(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = RoundedCornerShape(28.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = BrandPrimary
-                )
-            ) {
-
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Logout,
-                    contentDescription = null,
-                    tint = TextPrimary
-                )
-
-                Spacer(Modifier.width(8.dp))
-
-                Text(
-                    text = "Log Out",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TextPrimary
-                )
-            }
-
-            Spacer(Modifier.height(24.dp))
         }
+
+        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -228,6 +273,7 @@ private fun NotificationItem(
     title: String,
     subtitle: String,
     checked: Boolean,
+    enabled: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
 
@@ -268,6 +314,7 @@ private fun NotificationItem(
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = TextPrimary,
                 checkedTrackColor = BrandPrimary,
@@ -283,7 +330,16 @@ private fun NotificationItem(
 @Composable
 fun SettingsScreenLightPreview() {
     EventGlowTheme(darkTheme = false) {
-        UserSettingsScreen(navController = rememberNavController())
+        UserSettingsContent(
+            notificationsEnabled = true,
+            isUpdatingNotificationPreference = false,
+            onProfileSettings = {},
+            onChangePassword = {},
+            onToggleNotifications = {},
+            onSupport = {},
+            onHelpCenter = {},
+            onLogout = {}
+        )
     }
 }
 
@@ -291,7 +347,16 @@ fun SettingsScreenLightPreview() {
 @Composable
 fun SettingsScreenDarkPreview() {
     EventGlowTheme(darkTheme = true) {
-        UserSettingsScreen(navController = rememberNavController())
+        UserSettingsContent(
+            notificationsEnabled = true,
+            isUpdatingNotificationPreference = false,
+            onProfileSettings = {},
+            onChangePassword = {},
+            onToggleNotifications = {},
+            onSupport = {},
+            onHelpCenter = {},
+            onLogout = {}
+        )
     }
 }
 

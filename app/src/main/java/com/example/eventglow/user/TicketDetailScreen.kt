@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,7 +27,6 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -37,6 +37,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,7 +49,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Transaction
 import com.example.eventglow.ticket_management.TicketManagementViewModel
@@ -68,14 +69,11 @@ import com.google.zxing.MultiFormatWriter
 import com.google.zxing.common.BitMatrix
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.Locale
+import java.util.TimeZone
 import android.graphics.Color as AndroidColor
 
-private val DetailBg = Color(0xFF0B1115)
-private val DetailTop = Color(0xFF111A20)
-private val DetailCard = Color(0xFF1A252E)
-private val DetailText = Color(0xFFEAF4FB)
-private val DetailMuted = Color(0xFF9FB2C1)
-private val DetailAccent = Color(0xFF1ED760)
 private val DetailDanger = Color(0xFFFF5A5F)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -143,19 +141,26 @@ fun TicketDetailScreen(
     }
 
     Scaffold(
-        containerColor = DetailBg,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Ticket Details", color = DetailText) },
+            TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                title = { Text("Ticket Details", color = MaterialTheme.colorScheme.onBackground) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = DetailText)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = DetailTop,
-                    titleContentColor = DetailText
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
         }
@@ -164,7 +169,7 @@ fun TicketDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Brush.verticalGradient(colors = listOf(DetailTop, DetailBg)))
+                .background(MaterialTheme.colorScheme.background)
         ) {
             when {
                 transactionReference.isBlank() -> TicketErrorState(
@@ -175,7 +180,7 @@ fun TicketDetailScreen(
 
                 isLoading && ticket == null -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = DetailAccent)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -213,17 +218,21 @@ private fun TicketDetailContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         TicketHeaderCard(ticket = ticket)
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = DetailCard),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Ticket Details", color = DetailText, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Ticket Details",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium
+                )
                 DetailRow("Reference", ticket.transactionReference.orEmpty())
                 DetailRow("Organizer", ticket.eventOrganizer.ifBlank { "N/A" })
                 DetailRow("Ticket Type", ticket.ticketName.ifBlank { "General" })
@@ -242,30 +251,48 @@ private fun TicketDetailContent(
         }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = DetailCard),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Payment Timeline", color = DetailText, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Payment Timeline",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium
+                )
                 if (isTransactionLoading) {
-                    CircularProgressIndicator(color = DetailAccent, modifier = Modifier.size(20.dp))
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 } else {
                     DetailRow(
                         "Created At",
-                        transaction?.createdAt?.ifBlank { ticket.paymentCreatedAt }
-                            ?: ticket.paymentCreatedAt.ifBlank { "N/A" })
+                        formatDisplayDateTime(
+                            transaction?.createdAt?.ifBlank { ticket.paymentCreatedAt }
+                                ?: ticket.paymentCreatedAt.ifBlank { "N/A" }
+                        )
+                    )
                     DetailRow(
                         "Paid At",
-                        transaction?.paidAt?.ifBlank { ticket.paymentPaidAt } ?: ticket.paymentPaidAt.ifBlank { "N/A" })
+                        formatDisplayDateTime(
+                            transaction?.paidAt?.ifBlank { ticket.paymentPaidAt }
+                                ?: ticket.paymentPaidAt.ifBlank { "N/A" }
+                        )
+                    )
                     if (!transactionError.isNullOrBlank()) {
-                        Text(transactionError, color = DetailMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            transactionError,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
+                        )
                     }
                 }
             }
         }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = DetailCard),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             shape = RoundedCornerShape(16.dp)
         ) {
             Column(
@@ -275,7 +302,11 @@ private fun TicketDetailContent(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Ticket QR Code", color = DetailText, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Ticket QR Code",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium
+                )
                 if (qrBitmap != null) {
                     Image(
                         bitmap = qrBitmap.asImageBitmap(),
@@ -293,7 +324,7 @@ private fun TicketDetailContent(
                 } else {
                     Text(
                         "QR code data is unavailable.",
-                        color = DetailMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
@@ -305,10 +336,14 @@ private fun TicketDetailContent(
 @Composable
 private fun TicketHeaderCard(ticket: BoughtTicket) {
     val statusColor =
-        if (ticket.paymentStatus.equals("success", true) || ticket.isFreeTicket) DetailAccent else DetailDanger
+        if (ticket.paymentStatus.equals("success", true) || ticket.isFreeTicket) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            DetailDanger
+        }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = DetailCard),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -358,7 +393,7 @@ private fun TicketHeaderCard(ticket: BoughtTicket) {
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "${ticket.startDate.ifBlank { "N/A" }}  •  ${ticket.endDate.ifBlank { "N/A" }}",
+                        text = "${formatDisplayDate(ticket.startDate.ifBlank { "N/A" })}  •  ${formatDisplayDate(ticket.endDate.ifBlank { "N/A" })}",
                         color = Color.White.copy(alpha = 0.86f),
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -381,7 +416,7 @@ private fun TicketErrorState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(message, color = DetailText, style = MaterialTheme.typography.titleMedium)
+        Text(message, color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleMedium)
         Spacer(modifier = Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onBack) { Text("Back") }
@@ -393,9 +428,13 @@ private fun TicketErrorState(
 @Composable
 private fun DetailRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = DetailMuted, style = MaterialTheme.typography.bodyMedium)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.width(8.dp))
-        Text(value.ifBlank { "N/A" }, color = DetailText, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            value.ifBlank { "N/A" },
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
 }
 
@@ -417,6 +456,34 @@ private fun Bitmap.toPngBytes(): ByteArray {
     val stream = ByteArrayOutputStream()
     compress(Bitmap.CompressFormat.PNG, 100, stream)
     return stream.toByteArray()
+}
+
+private fun formatDisplayDateTime(raw: String): String {
+    val value = raw.trim()
+    if (value.isBlank() || value.equals("N/A", ignoreCase = true)) return raw
+
+    val output = SimpleDateFormat("MMM d, yyyy h:mm a", Locale.ENGLISH)
+    val parsers = listOf(
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+            isLenient = false
+            timeZone = TimeZone.getTimeZone("UTC")
+        },
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            isLenient = false
+            timeZone = TimeZone.getTimeZone("UTC")
+        },
+        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
+    )
+
+    for (parser in parsers) {
+        try {
+            val parsed = parser.parse(value)
+            if (parsed != null) return output.format(parsed)
+        } catch (_: Exception) {
+            // Try next pattern.
+        }
+    }
+    return raw
 }
 
 @Preview(showBackground = true, apiLevel = 34)

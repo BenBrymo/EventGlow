@@ -234,98 +234,20 @@ class EventsManagementViewModel : ViewModel() {
 
             //listens for a completion response
             .addOnSuccessListener { result ->
-
-                //to keep drafted events list
-                val draftedList = mutableListOf<Event>()
-
-                //to keep published events list
-                val nonDraftedList = mutableListOf<Event>()
-
-                //iterate through result data
-                for (document in result) {
-
-                    //hold map of document data
-                    val data = document.data
-                    Log.d("FirestoreData", "Document ID: ${document.id}, Data: $data")
-
-                    // Manually map Firestore data to Event class
-                    val event = Event(
-                        id = document.id,
-                        //cast eventName Data as string or if its null give default value
-                        eventName = data["eventName"] as? String ?: "",
-                        startDate = data["startDate"] as? String ?: "",
-                        endDate = data["endDate"] as? String ?: "",
-                        isMultiDayEvent = data["isMultiDayEvent"] as? Boolean ?: false,
-                        eventTime = data["eventTime"] as? String ?: "",
-                        eventVenue = data["eventVenue"] as? String ?: "",
-                        eventStatus = data["eventStatus"] as? String ?: "",
-                        isImportant = (data["important"] as? Boolean) ?: (data["isImportant"] as? Boolean) ?: false,
-                        eventCategory = data["eventCategory"] as? String ?: "",
-                        //cast ticketTypes data as a list of types maps and create a new list from retrived data
-                        ticketTypes = (data["ticketTypes"] as? List<Map<String, Any>>)?.map {
-                            TicketType(
-                                name = it["name"] as? String ?: "",
-                                price = (it["price"] as? Number)?.toDouble() ?: 0.0,
-                                availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0,
-                                isFree = (it["isFree"] as? Boolean) ?: (it["free"] as? Boolean) ?: false
-                            )
-                        } ?: listOf(),  // if returned data is null give default value of empty list
-                        imageUri = data["imageUri"] as? String ?: "",
-                        isDraft = data["isDraft"] as? Boolean ?: false,
-                        eventOrganizer = data["eventOrganizer"] as? String ?: "",
-                        eventDescription = data["eventDescription"] as? String ?: "",
-                        durationLabel = data["durationLabel"] as? String ?: "",
-                        durationMinutes = (data["durationMinutes"] as? Number)?.toInt() ?: 0,
-                        createdAtMs = (data["createdAtMs"] as? Number)?.toLong() ?: 0L,
-                    )
-
-                    Log.d("FirestoreEvent", "Event ID: ${event.id}, Is Draft: ${event.isDraft}")
-
-
-                    //if event is a drafted event add to drafted list or nonDrafted list
-                    if (event.isDraft) {
-                        draftedList.add(event)
-                    } else {
-                        nonDraftedList.add(event)
-                    }
-
-                    // Determine the new status of the event
-                    val newStatus = when {
-                        eventShouldBeEnded(event) -> "ended"
-                        eventShouldBeOngoing(event) -> "ongoing"
-                        else -> event.eventStatus
-                    }
-
-                    // Update the event status if necessary
-                    if (newStatus != event.eventStatus) {
-                        updateEventStatus(event.id, newStatus)
-
-                        // Update local lists
-                        val updatedEvent = event.copy(eventStatus = newStatus)
-                        if (event.isDraft) {
-                            draftedList.remove(event)
-                            draftedList.add(updatedEvent)
-                        } else {
-                            nonDraftedList.remove(event)
-                            nonDraftedList.add(updatedEvent)
+                val userId = auth.currentUser?.uid
+                if (userId.isNullOrBlank()) {
+                    processFetchedEvents(result, canWriteStatus = false)
+                } else {
+                    db.collection("users").document(userId).get()
+                        .addOnSuccessListener { userDoc ->
+                            val role = userDoc.getString("role").orEmpty()
+                            val isAdminUser = role.equals("admin", ignoreCase = true)
+                            processFetchedEvents(result, canWriteStatus = isAdminUser)
                         }
-                    }
+                        .addOnFailureListener {
+                            processFetchedEvents(result, canWriteStatus = false)
+                        }
                 }
-
-                // Newest events first in Manage Events.
-                nonDraftedList.sortByDescending { event -> event.createdAtMs }
-
-                //expose private variable drafted list to public variable drafted list
-                _draftedEvents.value = draftedList
-
-                //expose private variable non drafted list to public variable non drafted list
-                _events.value = nonDraftedList
-
-                Log.d("EventCount", "Total drafted events: ${draftedList.size}")
-                Log.d("EventCount", "Total non-drafted events: ${nonDraftedList.size}")
-
-                //set state to Success
-                _fetchEventsState.value = FetchEventsState.Success
             }
 
             .addOnFailureListener { exception ->
@@ -334,42 +256,192 @@ class EventsManagementViewModel : ViewModel() {
             }
     }
 
+    private fun processFetchedEvents(
+        result: com.google.firebase.firestore.QuerySnapshot,
+        canWriteStatus: Boolean
+    ) {
+        val draftedList = mutableListOf<Event>()
+        val nonDraftedList = mutableListOf<Event>()
+
+        for (document in result) {
+            val data = document.data
+            Log.d("FirestoreData", "Document ID: ${document.id}, Data: $data")
+
+            val event = Event(
+                id = document.id,
+                eventName = data["eventName"] as? String ?: "",
+                startDate = data["startDate"] as? String ?: "",
+                endDate = data["endDate"] as? String ?: "",
+                isMultiDayEvent = data["isMultiDayEvent"] as? Boolean ?: false,
+                eventTime = data["eventTime"] as? String ?: "",
+                eventVenue = data["eventVenue"] as? String ?: "",
+                eventStatus = data["eventStatus"] as? String ?: "",
+                isImportant = (data["important"] as? Boolean) ?: (data["isImportant"] as? Boolean) ?: false,
+                eventCategory = data["eventCategory"] as? String ?: "",
+                ticketTypes = (data["ticketTypes"] as? List<Map<String, Any>>)?.map {
+                    TicketType(
+                        name = it["name"] as? String ?: "",
+                        price = (it["price"] as? Number)?.toDouble() ?: 0.0,
+                        availableTickets = (it["availableTickets"] as? Number)?.toInt() ?: 0,
+                        isFree = (it["isFree"] as? Boolean) ?: (it["free"] as? Boolean) ?: false
+                    )
+                } ?: listOf(),
+                imageUri = data["imageUri"] as? String ?: "",
+                isDraft = data["isDraft"] as? Boolean ?: false,
+                eventOrganizer = data["eventOrganizer"] as? String ?: "",
+                eventDescription = data["eventDescription"] as? String ?: "",
+                durationLabel = data["durationLabel"] as? String ?: "",
+                durationMinutes = (data["durationMinutes"] as? Number)?.toInt() ?: 0,
+                createdAtMs = (data["createdAtMs"] as? Number)?.toLong() ?: 0L,
+            )
+
+            val computedStatus = computeEventStatus(event)
+            val updatedEvent = if (computedStatus != event.eventStatus) {
+                if (canWriteStatus) {
+                    updateEventStatus(event.id, computedStatus)
+                }
+                event.copy(eventStatus = computedStatus)
+            } else {
+                event
+            }
+
+            if (updatedEvent.isDraft) draftedList.add(updatedEvent) else nonDraftedList.add(updatedEvent)
+        }
+
+        nonDraftedList.sortByDescending { event -> event.createdAtMs }
+        _draftedEvents.value = draftedList
+        _events.value = nonDraftedList
+        _fetchEventsState.value = FetchEventsState.Success
+    }
+
+    private fun computeEventStatus(event: Event): String {
+        return when {
+            eventShouldBeEnded(event) -> "ended"
+            eventShouldBeOngoing(event) -> "ongoing"
+            else -> "upcoming"
+        }
+    }
+
 
     // Determine if an event should be ended
     private fun eventShouldBeEnded(event: Event): Boolean {
-        val currentDate = Date()
-
-        val eventEndDate: Date? = if (event.isMultiDayEvent) {
-            parseDate(event.endDate)
-        } else {
-            parseDate(event.startDate)
-        }
-
-        return eventEndDate?.before(currentDate) == true
+        val now = Date()
+        val window = resolveEventWindow(event) ?: return false
+        return now.after(window.end)
     }
 
     // Determine if an event should be ongoing
     private fun eventShouldBeOngoing(event: Event): Boolean {
-        val currentDate = Date()
+        val now = Date()
+        val window = resolveEventWindow(event) ?: return false
+        return !now.before(window.start) && !now.after(window.end)
+    }
 
-        if (event.isMultiDayEvent) {
-            val startDate = parseDate(event.startDate)
-            val endDate = parseDate(event.endDate)
-            startDate?.before(currentDate) == true && endDate?.after(currentDate) == true
+    private data class EventWindow(
+        val start: Date,
+        val end: Date
+    )
+
+    private fun resolveEventWindow(event: Event): EventWindow? {
+        val start = parseEventStartDateTime(event) ?: return null
+        val end = resolveEventEndDateTime(event, start) ?: return null
+        return if (end.before(start)) {
+            EventWindow(start = start, end = start)
+        } else {
+            EventWindow(start = start, end = end)
         }
-        return false
+    }
+
+    private fun parseEventStartDateTime(event: Event): Date? {
+        val startDate = parseDateFlexible(event.startDate) ?: return null
+        val parsedTime = parseTime(event.eventTime)
+        return if (parsedTime != null) {
+            mergeDateAndTime(startDate, parsedTime.first, parsedTime.second)
+        } else {
+            // Fallback if time is missing/invalid: start at beginning of day.
+            mergeDateAndTime(startDate, 0, 0)
+        }
+    }
+
+    private fun resolveEventEndDateTime(event: Event, startDateTime: Date): Date? {
+        return if (event.isMultiDayEvent) {
+            val endDate = parseDateFlexible(event.endDate.ifBlank { event.startDate }) ?: return null
+            mergeDateAndTime(endDate, 23, 59)
+        } else {
+            if (event.durationMinutes > 0) {
+                Date(startDateTime.time + (event.durationMinutes * 60_000L))
+            } else {
+                val sameDay = parseDateFlexible(event.startDate) ?: return null
+                mergeDateAndTime(sameDay, 23, 59)
+            }
+        }
+    }
+
+    private fun parseDateFlexible(dateString: String): Date? {
+        val trimmed = dateString.trim()
+        if (trimmed.isBlank()) return null
+
+        val patterns = listOf("dd/MM/yyyy", "d/M/yyyy", "dd/M/yyyy", "d/MM/yyyy")
+        for (pattern in patterns) {
+            try {
+                val parser = SimpleDateFormat(pattern, Locale.getDefault()).apply { isLenient = false }
+                val parsed = parser.parse(trimmed)
+                if (parsed != null) return parsed
+            } catch (_: Exception) {
+                // Try next pattern.
+            }
+        }
+        return null
+    }
+
+    private fun parseTime(timeString: String): Pair<Int, Int>? {
+        val trimmed = timeString.trim()
+        if (trimmed.isBlank()) return null
+
+        val patterns = listOf("h:mm a", "hh:mm a", "H:mm", "HH:mm", "h a", "ha")
+        for (pattern in patterns) {
+            try {
+                val parser = SimpleDateFormat(pattern, Locale.getDefault()).apply { isLenient = false }
+                val parsed = parser.parse(trimmed) ?: continue
+                val calendar = Calendar.getInstance().apply { time = parsed }
+                return calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
+            } catch (_: Exception) {
+                // Try next pattern.
+            }
+        }
+        return null
+    }
+
+    private fun mergeDateAndTime(date: Date, hourOfDay: Int, minute: Int): Date {
+        return Calendar.getInstance().apply {
+            time = date
+            set(Calendar.HOUR_OF_DAY, hourOfDay)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.time
     }
 
     // Update the status of an event in the database
-    private fun updateEventStatus(eventId: String, newStatus: String) {
+    fun updateEventStatus(eventId: String, newStatus: String) {
+        val normalizedStatus = newStatus.trim().lowercase(Locale.getDefault())
+        if (eventId.isBlank() || normalizedStatus.isBlank()) return
         db.collection("events").document(eventId)
-            .update("eventStatus", newStatus)
+            .update("eventStatus", normalizedStatus)
             .addOnSuccessListener {
-                Log.d("EventStatusUpdate", "Event ID: $eventId status updated to $newStatus")
+                Log.d("EventStatusUpdate", "Event ID: $eventId status updated to $normalizedStatus")
             }
             .addOnFailureListener { e ->
                 Log.d("EventStatusUpdate", "Error updating event status for Event ID: $eventId", e)
             }
+    }
+
+    fun markEventOngoing(eventId: String) {
+        updateEventStatus(eventId, "ongoing")
+    }
+
+    fun markEventEnded(eventId: String) {
+        updateEventStatus(eventId, "ended")
     }
 
 

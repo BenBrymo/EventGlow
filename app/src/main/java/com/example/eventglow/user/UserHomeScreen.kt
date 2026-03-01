@@ -1,5 +1,6 @@
 package com.example.eventglow.user
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,7 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
 import kotlinx.coroutines.delay
@@ -70,17 +72,22 @@ fun userHomeScreen(
     }
 
     val sections = buildSections(allEvents)
+    val visibleFeaturedEvents = featuredEvents.ifEmpty {
+        sections.liveEvents.ifEmpty { allEvents.take(8) }
+    }
 
     UserHomeContent(
-        featuredEvents = featuredEvents,
+        featuredEvents = visibleFeaturedEvents,
         categories = categories.map { it.name },
         liveEvents = sections.liveEvents,
         todayEvents = sections.todayEvents,
         upcomingEvents = sections.upcomingEvents,
-        onSearchFocus = { navController.navigate(Routes.USER_SEARCH_SCREEN) },
-        onCategoryClick = { category ->
-            userViewModel.onSearchQueryChange(category)
+        onSearchAction = { query ->
+            userViewModel.onSearchQueryChange(query.trim())
             navController.navigate(Routes.USER_SEARCH_SCREEN)
+        },
+        onCategoryClick = { category ->
+            navController.navigate("user_events_section/category:${Uri.encode(category)}")
         },
         onEventClick = { event -> navController.navigate("detailed_event_screen/${event.id}") },
         onSeeAll = { sectionType -> navController.navigate("user_events_section/$sectionType") }
@@ -94,7 +101,7 @@ private fun UserHomeContent(
     liveEvents: List<Event>,
     todayEvents: List<Event>,
     upcomingEvents: List<Event>,
-    onSearchFocus: () -> Unit,
+    onSearchAction: (String) -> Unit,
     onCategoryClick: (String) -> Unit,
     onEventClick: (Event) -> Unit,
     onSeeAll: (String) -> Unit
@@ -108,7 +115,7 @@ private fun UserHomeContent(
     ) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
-            SearchBar(onSearchFocus = onSearchFocus)
+            SearchBar(onSearchAction = onSearchAction)
         }
 
         item {
@@ -120,6 +127,28 @@ private fun UserHomeContent(
 
         item {
             SectionHeader(title = "Browse by category", onSeeAll = null)
+        }
+
+        item {
+            if (categories.isEmpty()) {
+                Text(
+                    text = "No categories yet",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            } else {
+                LazyRow(
+                    contentPadding = PaddingValues(start = 16.dp, end = 72.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(categories) { category ->
+                        CategoryRailCard(
+                            name = category,
+                            onClick = { onCategoryClick(category) }
+                        )
+                    }
+                }
+            }
         }
 
         item {
@@ -148,27 +177,6 @@ private fun UserHomeContent(
                 onSeeAll = { onSeeAll("upcoming") }
             )
         }
-
-        item {
-            if (categories.isEmpty()) {
-                Text(
-                    text = "No categories yet",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            } else {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(categories) { category ->
-                        CategoryPill(name = category, onClick = { onCategoryClick(category) })
-                    }
-                }
-            }
-        }
-
-
     }
 }
 
@@ -177,23 +185,28 @@ private fun FeaturedAutoSlideRail(
     events: List<Event>,
     onEventClick: (Event) -> Unit
 ) {
-    if (events.isEmpty()) return
-
-    val listState = rememberLazyListState()
-    AutoSlideFeaturedEvents(listState = listState, eventCount = events.size)
-
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionHeader(title = "Featured Events", onSeeAll = null)
-        LazyRow(
-            state = listState,
-            contentPadding = PaddingValues(start = 16.dp, end = 72.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(events) { event ->
-                FeaturedEventCard(
-                    event = event,
-                    onClick = { onEventClick(event) }
-                )
+        if (events.isEmpty()) {
+            Text(
+                text = "No featured events yet",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        } else {
+            val listState = rememberLazyListState()
+            AutoSlideFeaturedEvents(listState = listState, eventCount = events.size)
+            LazyRow(
+                state = listState,
+                contentPadding = PaddingValues(start = 16.dp, end = 72.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(events) { event ->
+                    FeaturedEventCard(
+                        event = event,
+                        onClick = { onEventClick(event) }
+                    )
+                }
             }
         }
     }
@@ -257,7 +270,7 @@ private fun FeaturedEventCard(
                     maxLines = 1
                 )
                 Text(
-                    text = event.startDate.ifBlank { "Date not set" },
+                    text = event.startDate.ifBlank { "Date not set" }.let { formatDisplayDate(it) },
                     color = Color.White.copy(alpha = 0.88f),
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -267,8 +280,9 @@ private fun FeaturedEventCard(
 }
 
 @Composable
-private fun SearchBar(onSearchFocus: () -> Unit) {
+private fun SearchBar(onSearchAction: (String) -> Unit) {
     var searchValue by remember { mutableStateOf("") }
+    var didNavigate by remember { mutableStateOf(false) }
 
     OutlinedTextField(
         value = searchValue,
@@ -279,11 +293,24 @@ private fun SearchBar(onSearchFocus: () -> Unit) {
         },
         shape = RoundedCornerShape(50),
         singleLine = true,
-        readOnly = true,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .clickable(onClick = onSearchFocus),
+            .clickable {
+                if (!didNavigate) {
+                    didNavigate = true
+                    onSearchAction(searchValue)
+                }
+            }
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused && !didNavigate) {
+                    didNavigate = true
+                    onSearchAction(searchValue)
+                }
+                if (!focusState.isFocused) {
+                    didNavigate = false
+                }
+            },
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.outline,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
@@ -292,22 +319,31 @@ private fun SearchBar(onSearchFocus: () -> Unit) {
 }
 
 @Composable
-private fun CategoryPill(
+private fun CategoryRailCard(
     name: String,
     onClick: () -> Unit
 ) {
-    Box(
+    Card(
         modifier = Modifier
-            .clip(RoundedCornerShape(40.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .width(150.dp)
+            .height(80.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
     ) {
-        Text(
-            text = name,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            contentAlignment = Alignment.BottomStart
+        ) {
+            Text(
+                text = name,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 2
+            )
+        }
     }
 }
 
@@ -405,7 +441,7 @@ private fun NetflixEventCard(
                     maxLines = 1
                 )
                 Text(
-                    text = event.startDate.ifBlank { "Date not set" },
+                    text = event.startDate.ifBlank { "Date not set" }.let { formatDisplayDate(it) },
                     color = Color.White.copy(alpha = 0.88f),
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -423,16 +459,28 @@ fun UserEventsSectionScreen(
     val allEvents by userViewModel.events.collectAsState()
     val sections = buildSections(allEvents)
 
-    val sectionTitle = when (sectionType) {
-        "live" -> "Live Events"
-        "today" -> "Today Events"
-        "upcoming" -> "Upcoming Events"
+    val categoryPrefix = "category:"
+    val selectedCategory = if (sectionType.startsWith(categoryPrefix)) {
+        Uri.decode(sectionType.removePrefix(categoryPrefix))
+    } else {
+        ""
+    }
+
+    val sectionTitle = when {
+        selectedCategory.isNotBlank() -> "$selectedCategory Events"
+        sectionType == "live" -> "Live Events"
+        sectionType == "today" -> "Today Events"
+        sectionType == "upcoming" -> "Upcoming Events"
         else -> "Events"
     }
-    val sectionEvents = when (sectionType) {
-        "live" -> sections.liveEvents
-        "today" -> sections.todayEvents
-        "upcoming" -> sections.upcomingEvents
+    val sectionEvents = when {
+        selectedCategory.isNotBlank() -> allEvents.filter {
+            it.eventCategory.equals(selectedCategory, ignoreCase = true)
+        }
+
+        sectionType == "live" -> sections.liveEvents
+        sectionType == "today" -> sections.todayEvents
+        sectionType == "upcoming" -> sections.upcomingEvents
         else -> allEvents
     }
 
@@ -472,28 +520,50 @@ private data class UserHomeSections(
 )
 
 private fun buildSections(events: List<Event>): UserHomeSections {
-    val todayDate = normalizeDate(Calendar.getInstance().time)
+    val now = Calendar.getInstance().time
+    val todayDate = normalizeDate(now)
 
     val withDates = events.mapNotNull { event ->
-        val start = parseDate(event.startDate) ?: return@mapNotNull null
-        val end = parseDate(event.endDate).takeIf { event.isMultiDayEvent } ?: start
-        Triple(event, normalizeDate(start), normalizeDate(end))
+        val startDate = parseDate(event.startDate) ?: return@mapNotNull null
+        val endDate = parseDate(event.endDate).takeIf { event.isMultiDayEvent } ?: startDate
+        val startAt = combineDateAndTime(
+            date = startDate,
+            time = event.eventTime,
+            fallbackHour = 0,
+            fallbackMinute = 0
+        )
+        val endAt = if (event.durationMinutes > 0) {
+            Date(startAt.time + (event.durationMinutes * 60_000L))
+        } else {
+            combineDateAndTime(
+                date = endDate,
+                time = event.eventTime,
+                fallbackHour = 23,
+                fallbackMinute = 59
+            )
+        }
+        LiveWindowEvent(
+            event = event,
+            startDate = normalizeDate(startDate),
+            endDate = normalizeDate(endDate),
+            startAt = startAt,
+            endAt = endAt
+        )
     }
 
     val live = withDates
-        .filter { (event, start, end) ->
-            event.eventStatus.equals("Live", ignoreCase = true) ||
-                    (!todayDate.before(start) && !todayDate.after(end))
+        .filter { candidate ->
+            !now.before(candidate.startAt) && !now.after(candidate.endAt)
         }
-        .map { it.first }
+        .map { it.event }
 
     val today = withDates
-        .filter { (_, start, _) -> start == todayDate }
-        .map { it.first }
+        .filter { candidate -> candidate.startDate == todayDate }
+        .map { it.event }
 
     val upcoming = withDates
-        .filter { (_, start, _) -> start.after(todayDate) }
-        .map { it.first }
+        .filter { candidate -> candidate.startAt.after(now) }
+        .map { it.event }
 
     return UserHomeSections(
         liveEvents = live,
@@ -518,6 +588,57 @@ private fun normalizeDate(date: Date): Date {
         set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
     }.time
+}
+
+private data class LiveWindowEvent(
+    val event: Event,
+    val startDate: Date,
+    val endDate: Date,
+    val startAt: Date,
+    val endAt: Date
+)
+
+private fun combineDateAndTime(
+    date: Date,
+    time: String,
+    fallbackHour: Int,
+    fallbackMinute: Int
+): Date {
+    val calendar = Calendar.getInstance().apply {
+        this.time = date
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+
+    val parsedTime = parseTime(time)
+    val hour = parsedTime?.first ?: fallbackHour
+    val minute = parsedTime?.second ?: fallbackMinute
+    calendar.set(Calendar.HOUR_OF_DAY, hour)
+    calendar.set(Calendar.MINUTE, minute)
+    return calendar.time
+}
+
+private fun parseTime(value: String): Pair<Int, Int>? {
+    val trimmed = value.trim()
+    if (trimmed.isBlank()) return null
+
+    val patterns = listOf(
+        "h:mm a",
+        "hh:mm a",
+        "H:mm",
+        "HH:mm"
+    )
+    for (pattern in patterns) {
+        try {
+            val sdf = SimpleDateFormat(pattern, Locale.getDefault())
+            val parsed = sdf.parse(trimmed) ?: continue
+            val calendar = Calendar.getInstance().apply { time = parsed }
+            return calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
+        } catch (_: Exception) {
+            // Continue trying other patterns.
+        }
+    }
+    return null
 }
 
 @Preview(showBackground = true, apiLevel = 34)
@@ -558,7 +679,7 @@ private fun UserHomeContentPreview() {
         upcomingEvents = listOf(
             Event(id = "4", eventName = "Future Expo", startDate = "20/02/2026", imageUri = "")
         ),
-        onSearchFocus = {},
+        onSearchAction = {},
         onCategoryClick = {},
         onEventClick = {},
         onSeeAll = {}
@@ -574,7 +695,7 @@ private fun UserHomeEmptyPreview() {
         liveEvents = emptyList(),
         todayEvents = emptyList(),
         upcomingEvents = emptyList(),
-        onSearchFocus = {},
+        onSearchAction = {},
         onCategoryClick = {},
         onEventClick = {},
         onSeeAll = {}

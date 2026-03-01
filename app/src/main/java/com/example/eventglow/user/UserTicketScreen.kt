@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,7 +28,6 @@ import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,13 +36,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.BoughtTicket
 
 private val TicketsBg = Color(0xFF0B1115)
@@ -80,27 +81,41 @@ fun MyTicketsScreen(
     )
 
     Scaffold(
-        containerColor = TicketsBg,
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("My Tickets", color = TicketsText, style = MaterialTheme.typography.titleLarge) },
+            TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                title = {
+                    Text(
+                        "My Tickets",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = TicketsText
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
                 },
                 actions = {
                     IconButton(onClick = { userViewModel.fetchBoughtTickets() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = TicketsAccent)
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = TicketsTop,
-                    titleContentColor = TicketsText
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.primary
                 )
             )
         }
@@ -110,16 +125,12 @@ fun MyTicketsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .pullRefresh(pullRefreshState)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(TicketsTop, TicketsBg)
-                    )
-                )
+                .background(MaterialTheme.colorScheme.background)
         ) {
             when {
                 isLoading && tickets.isEmpty() -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = TicketsAccent)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -158,8 +169,8 @@ fun MyTicketsScreen(
                 refreshing = isRefreshing,
                 state = pullRefreshState,
                 modifier = Modifier.align(Alignment.TopCenter),
-                contentColor = TicketsAccent,
-                backgroundColor = TicketsTop
+                contentColor = MaterialTheme.colorScheme.primary,
+                backgroundColor = MaterialTheme.colorScheme.surface
             )
         }
     }
@@ -171,9 +182,16 @@ private fun SpotifyTicketCard(
     onClick: () -> Unit
 ) {
     val paidColor = if (ticket.paymentStatus.equals("success", ignoreCase = true) || ticket.isFreeTicket) {
-        TicketsAccent
+        MaterialTheme.colorScheme.primary
     } else {
-        TicketsDanger
+        MaterialTheme.colorScheme.error
+    }
+    val statusLabel = when {
+        ticket.isFreeTicket -> "FREE"
+        !ticket.paymentStatus.equals("success", ignoreCase = true) -> ticket.paymentStatus.uppercase()
+            .ifBlank { "FAILED" }
+
+        else -> null
     }
 
     Card(
@@ -181,7 +199,7 @@ private fun SpotifyTicketCard(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = TicketsCard),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -201,20 +219,22 @@ private fun SpotifyTicketCard(
                         .fillMaxSize()
                         .background(Color.Black.copy(alpha = 0.38f))
                 )
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = paidColor.copy(alpha = 0.18f),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(10.dp)
-                ) {
-                    Text(
-                        text = if (ticket.isFreeTicket) "FREE" else ticket.paymentStatus.uppercase().ifBlank { "PAID" },
-                        color = paidColor,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
+                if (statusLabel != null) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = paidColor.copy(alpha = 0.18f),
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(10.dp)
+                    ) {
+                        Text(
+                            text = statusLabel,
+                            color = paidColor,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
                 }
             }
 
@@ -226,14 +246,14 @@ private fun SpotifyTicketCard(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = TicketsCardAlt,
+                    color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier.size(36.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.ConfirmationNumber,
                             contentDescription = null,
-                            tint = TicketsAccent
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -243,7 +263,7 @@ private fun SpotifyTicketCard(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = ticket.eventName.ifBlank { "Event Ticket" },
-                        color = TicketsText,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -251,20 +271,20 @@ private fun SpotifyTicketCard(
                     )
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = ticket.startDate.ifBlank { "Date not set" },
-                        color = TicketsMuted,
+                        text = ticket.startDate.ifBlank { "Date not set" }.let { formatDisplayDate(it) },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                     Text(
                         text = "Ticket: ${ticket.ticketName.ifBlank { "General" }}",
-                        color = TicketsMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
 
                 Text(
                     text = if (ticket.isFreeTicket) "FREE" else "GHS ${ticket.ticketPrice.ifBlank { "0.00" }}",
-                    color = TicketsText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -285,18 +305,18 @@ private fun EmptyTicketsState() {
             Icon(
                 imageVector = Icons.Default.ConfirmationNumber,
                 contentDescription = null,
-                tint = TicketsMuted,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(64.dp)
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "No tickets yet",
-                color = TicketsText,
+                color = MaterialTheme.colorScheme.onBackground,
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
                 text = "Tickets you buy will appear here.",
-                color = TicketsMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium
             )
         }
@@ -317,13 +337,13 @@ private fun TicketsErrorState(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = message,
-                color = TicketsText,
+                color = MaterialTheme.colorScheme.onBackground,
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Tap to retry",
-                color = TicketsAccent,
+                color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.clickable(onClick = onRetry)
             )
