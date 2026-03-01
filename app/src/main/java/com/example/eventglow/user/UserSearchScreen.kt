@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -238,24 +239,70 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun CategoryChip(
-    name: String,
+private fun TopPickCard(
+    event: Event,
     onClick: () -> Unit
 ) {
-    Box(
+    val isFree = event.ticketTypes.any { it.price <= 0.0 || it.isFree }
+
+    Card(
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .width(210.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Text(
-            text = name,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Column {
+            Box {
+                AsyncImage(
+                    model = event.imageUri,
+                    contentDescription = event.eventName,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(130.dp)
+                )
+
+                Box(
+                    modifier = Modifier
+                        .padding(10.dp)
+                        .align(Alignment.TopStart)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(
+                            if (isFree) Color(0xFF1DB954).copy(alpha = 0.20f)
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                        )
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = if (isFree) "Free" else "Paid",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isFree) Color(0xFF1DB954) else MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.padding(10.dp)) {
+                Text(
+                    text = event.eventName.ifBlank { "Untitled event" },
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = event.eventVenue.ifBlank { "Venue not set" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
+
 
 
 @Composable
