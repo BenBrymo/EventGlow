@@ -27,7 +27,7 @@ import com.example.eventglow.ui.theme.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminChangePasswordScreen(
+fun ChangePasswordScreen(
     onBackClick: () -> Unit = {},
     onSaveClick: () -> Unit = {},
     viewModel: ChangePasswordViewModel = viewModel()
@@ -179,5 +179,5 @@ private fun AdminPasswordField(
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun AdminChangePasswordScreenPreview() {
-    AdminChangePasswordScreen()
+    ChangePasswordScreen()
 }

@@ -52,6 +52,7 @@ fun ManageUsersScreen(
     val users by viewModel.filteredUsers.collectAsState()
     val searchQuery by viewModel.searchQueryUser.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val vmErrorMessage by viewModel.errorMessage.collectAsState()
     val isAddingUser by viewModel.isAddingUser.collectAsState()
     val addUserError by viewModel.addUserError.collectAsState()
     val addUserSuccess by viewModel.addUserSuccess.collectAsState()
@@ -75,11 +76,19 @@ fun ManageUsersScreen(
         viewModel.clearAddUserFeedback()
     }
 
+    LaunchedEffect(vmErrorMessage) {
+        val message = vmErrorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearError()
+    }
+
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = Background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
                 title = { Text("Manage Users") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {

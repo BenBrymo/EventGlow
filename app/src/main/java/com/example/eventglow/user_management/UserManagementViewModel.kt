@@ -1,9 +1,10 @@
 package com.example.eventglow.user_management
 
+import android.app.Application
 import android.util.Patterns
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.eventglow.BuildConfig
+import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.User
@@ -24,7 +25,7 @@ import retrofit2.http.Headers
 import retrofit2.http.POST
 import retrofit2.http.Url
 
-class UserManagementViewModel : ViewModel() {
+class UserManagementViewModel(application: Application) : BaseViewModel(application) {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val usersCollection = firestore.collection("users")
@@ -74,6 +75,7 @@ class UserManagementViewModel : ViewModel() {
                 applyFilter(_searchQueryUser.value)
             } catch (e: Exception) {
                 _addUserError.value = e.message ?: "Failed to fetch users."
+                setFailure(_addUserError.value)
             } finally {
                 _isLoading.value = false
             }
@@ -129,6 +131,7 @@ class UserManagementViewModel : ViewModel() {
                 fetchUsers()
             } catch (e: Exception) {
                 _addUserError.value = e.message ?: "Failed to create account."
+                setFailure(_addUserError.value)
             } finally {
                 _isAddingUser.value = false
             }

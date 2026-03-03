@@ -5,8 +5,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,7 +24,6 @@ import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,7 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,15 +52,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.eventglow.dataClass.Transaction
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
-private val SportyBg = Color(0xFF0D1216)
-private val SportyTop = Color(0xFF111A20)
-private val SportyCard = Color(0xFF18222A)
-private val SportyCardLight = Color(0xFF22303B)
-private val SportyAccent = Color(0xFF39D353)
-private val SportyDanger = Color(0xFFFF5A5F)
-private val SportyMuted = Color(0xFF9CB0BE)
-private val SportyText = Color(0xFFEAF4FB)
+private val SuccessGreen = Color(0xFF39D353)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,19 +99,31 @@ private fun TransactionsScreenContent(
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     Scaffold(
-        containerColor = SportyBg,
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Transactions", color = SportyText, style = MaterialTheme.typography.titleLarge) },
+            TopAppBar(
+                windowInsets = WindowInsets(0, 0, 0, 0),
+                title = {
+                    Text(
+                        "Transactions",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 actions = {
                     IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = SportyAccent)
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = SportyTop,
-                    titleContentColor = SportyText,
-                    actionIconContentColor = SportyAccent
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                    actionIconContentColor = MaterialTheme.colorScheme.primary
                 )
             )
         }
@@ -119,19 +131,18 @@ private fun TransactionsScreenContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(SportyTop, SportyBg)
-                    )
-                )
+                .background(MaterialTheme.colorScheme.background)
                 .padding(paddingValues)
         ) {
-            TransactionSummaryRow(transactions = transactions)
+            TransactionSummaryRow(
+                transactions = transactions,
+                modifier = Modifier.padding(top = 8.dp)
+            )
 
             when {
                 isLoading -> {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = SportyAccent)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -149,17 +160,16 @@ private fun TransactionsScreenContent(
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(transactions) { transaction ->
-                            SportyTransactionCard(
+                            TransactionCard(
                                 transaction = transaction,
-                                onClick = {
-                                    selectedTransaction = transaction
-                                }
+                                onClick = { selectedTransaction = transaction }
                             )
                         }
-                        item { Spacer(modifier = Modifier.height(12.dp)) }
+                        item { Spacer(modifier = Modifier.height(8.dp)) }
                     }
                 }
             }
@@ -168,7 +178,7 @@ private fun TransactionsScreenContent(
 
     selectedTransaction?.let { tx ->
         ModalBottomSheet(
-            containerColor = SportyCard,
+            containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { selectedTransaction = null }
         ) {
             TransactionDetails(transaction = tx)
@@ -177,27 +187,30 @@ private fun TransactionsScreenContent(
 }
 
 @Composable
-private fun TransactionSummaryRow(transactions: List<Transaction>) {
+private fun TransactionSummaryRow(
+    transactions: List<Transaction>,
+    modifier: Modifier = Modifier
+) {
     val successCount = transactions.count { it.status.equals("success", ignoreCase = true) }
     val failedCount = transactions.count { !it.status.equals("success", ignoreCase = true) }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         SummaryChip(title = "Total", value = transactions.size.toString(), modifier = Modifier.weight(1f))
         SummaryChip(
             title = "Success",
             value = successCount.toString(),
-            accent = SportyAccent,
+            accent = SuccessGreen,
             modifier = Modifier.weight(1f)
         )
         SummaryChip(
             title = "Failed",
             value = failedCount.toString(),
-            accent = SportyDanger,
+            accent = MaterialTheme.colorScheme.error,
             modifier = Modifier.weight(1f)
         )
     }
@@ -207,16 +220,20 @@ private fun TransactionSummaryRow(transactions: List<Transaction>) {
 private fun SummaryChip(
     title: String,
     value: String,
-    accent: Color = SportyText,
+    accent: Color = MaterialTheme.colorScheme.onSurface,
     modifier: Modifier = Modifier
 ) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(14.dp),
-        color = SportyCardLight
+        color = MaterialTheme.colorScheme.surfaceVariant
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(text = title, color = SportyMuted, style = MaterialTheme.typography.labelMedium)
+            Text(
+                text = title,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium
+            )
             Text(
                 text = value,
                 color = accent,
@@ -228,20 +245,20 @@ private fun SummaryChip(
 }
 
 @Composable
-private fun SportyTransactionCard(
+private fun TransactionCard(
     transaction: Transaction,
     onClick: () -> Unit
 ) {
     val isSuccess = transaction.status.equals("success", ignoreCase = true)
-    val statusColor = if (isSuccess) SportyAccent else SportyDanger
+    val statusColor = if (isSuccess) SuccessGreen else MaterialTheme.colorScheme.error
+    val displayDate = formatDisplayDateTime(transaction.paidAt.ifBlank { transaction.createdAt.ifBlank { "" } })
 
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SportyCard),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp)
             .clickable(onClick = onClick)
     ) {
         Row(
@@ -252,11 +269,17 @@ private fun SportyTransactionCard(
         ) {
             Surface(
                 shape = CircleShape,
-                color = SportyCardLight,
-                modifier = Modifier.width(42.dp).height(42.dp)
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .width(42.dp)
+                    .height(42.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.AttachMoney, contentDescription = null, tint = SportyAccent)
+                    Icon(
+                        Icons.Default.AttachMoney,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 
@@ -265,22 +288,22 @@ private fun SportyTransactionCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = transaction.reference.ifBlank { transaction.id.ifBlank { "Transaction" } },
-                    color = SportyText,
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${transaction.currency.ifBlank { "GHS" }} ${transaction.amount}",
-                    color = SportyText,
+                    text = "${transaction.currency.ifBlank { "GHS" }} ${formatAmountDisplay(transaction.amount)}",
+                    color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = transaction.paidAt.ifBlank { transaction.createdAt.ifBlank { "No date" } },
-                    color = SportyMuted,
+                    text = displayDate.ifBlank { "No date" },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -312,11 +335,15 @@ private fun ErrorState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = SportyDanger)
-        Text(text = message, color = SportyText, style = MaterialTheme.typography.bodyMedium)
+        Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+        Text(
+            text = message,
+            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.bodyMedium
+        )
         Text(
             text = "Tap to retry",
-            color = SportyAccent,
+            color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.clickable(onClick = onRetry)
         )
@@ -331,7 +358,7 @@ private fun EmptyState() {
     ) {
         Text(
             text = "No transactions yet",
-            color = SportyMuted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyLarge
         )
     }
@@ -345,12 +372,19 @@ fun TransactionDetails(transaction: Transaction) {
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("Transaction Details", color = SportyText, style = MaterialTheme.typography.titleLarge)
+        Text(
+            "Transaction Details",
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleLarge
+        )
         TransactionDetailRow("Transaction ID", transaction.id)
         TransactionDetailRow("Status", transaction.status)
-        TransactionDetailRow("Amount", "${transaction.currency.ifBlank { "GHS" }} ${transaction.amount}")
-        TransactionDetailRow("Paid At", transaction.paidAt.ifBlank { "N/A" })
-        TransactionDetailRow("Created At", transaction.createdAt.ifBlank { "N/A" })
+        TransactionDetailRow(
+            "Amount",
+            "${transaction.currency.ifBlank { "GHS" }} ${formatAmountDisplay(transaction.amount)}"
+        )
+        TransactionDetailRow("Paid At", formatDisplayDateTime(transaction.paidAt).ifBlank { "N/A" })
+        TransactionDetailRow("Created At", formatDisplayDateTime(transaction.createdAt).ifBlank { "N/A" })
         TransactionDetailRow("Channel", transaction.channel.ifBlank { "N/A" })
         TransactionDetailRow("Reference", transaction.reference.ifBlank { "N/A" })
         TransactionDetailRow("Gateway", transaction.gatewayResponse.ifBlank { "N/A" })
@@ -363,22 +397,67 @@ fun TransactionDetailRow(label: String, value: String) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = SportyMuted, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium
+        )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text = value, color = SportyText, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = value,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.bodyMedium
+        )
     }
+}
+
+private fun formatDisplayDateTime(raw: String): String {
+    if (raw.isBlank()) return ""
+    val parsers = listOf(
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        },
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssX", Locale.getDefault()).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        },
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()),
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()),
+        SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()),
+        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    )
+    val parsed: Date = parsers.firstNotNullOfOrNull { parser ->
+        runCatching { parser.parse(raw) }.getOrNull()
+    } ?: return raw
+
+    return SimpleDateFormat("MMM d, yyyy h:mm a", Locale.getDefault()).format(parsed)
+}
+
+private fun formatAmountDisplay(rawAmount: String): String {
+    val value = rawAmount.trim()
+    if (value.isBlank()) return "0.00"
+
+    val formatted = runCatching {
+        val bd = BigDecimal(value)
+        if (!value.contains(".")) {
+            bd.divide(BigDecimal(100), 2, RoundingMode.HALF_UP).toPlainString()
+        } else {
+            bd.setScale(2, RoundingMode.HALF_UP).toPlainString()
+        }
+    }.getOrNull()
+
+    return formatted ?: value
 }
 
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun TransactionItemPreview() {
-    SportyTransactionCard(
+    TransactionCard(
         transaction = Transaction(
             id = "tx_1",
             status = "success",
-            amount = "120.00",
+            amount = "5000",
             currency = "GHS",
-            paidAt = "2026-02-16T12:00:00",
+            paidAt = "2026-02-16T12:00:00Z",
             reference = "REF123",
             channel = "card"
         ),
@@ -393,66 +472,12 @@ fun TransactionDetailsPreview() {
         transaction = Transaction(
             id = "tx_2",
             status = "success",
-            amount = "75.00",
+            amount = "7500",
             currency = "GHS",
-            paidAt = "2026-02-16T10:30:00",
+            paidAt = "2026-02-16T10:30:00Z",
+            createdAt = "2026-02-16T10:10:00Z",
             reference = "REF456",
             channel = "mobile_money"
         )
-    )
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun TransactionsScreenContentPreview() {
-    TransactionsScreenContent(
-        transactions = listOf(
-            Transaction(
-                id = "tx_1",
-                status = "success",
-                amount = "120.00",
-                currency = "GHS",
-                paidAt = "2026-02-16T12:00:00",
-                reference = "REF123",
-                channel = "card"
-            ),
-            Transaction(
-                id = "tx_2",
-                status = "failed",
-                amount = "75.00",
-                currency = "GHS",
-                paidAt = "2026-02-17T10:30:00",
-                reference = "REF456",
-                channel = "mobile_money"
-            )
-        ),
-        isLoading = false,
-        errorMessage = null,
-        onRetry = {},
-        onRefresh = {}
-    )
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun TransactionsScreenEmptyPreview() {
-    TransactionsScreenContent(
-        transactions = emptyList(),
-        isLoading = false,
-        errorMessage = null,
-        onRetry = {},
-        onRefresh = {}
-    )
-}
-
-@Preview(showBackground = true, apiLevel = 34)
-@Composable
-fun TransactionsScreenErrorPreview() {
-    TransactionsScreenContent(
-        transactions = emptyList(),
-        isLoading = false,
-        errorMessage = "Failed to fetch transactions",
-        onRetry = {},
-        onRefresh = {}
     )
 }

@@ -1,10 +1,11 @@
 package com.example.eventglow.events_management
 
+import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import androidx.lifecycle.ViewModel
 import com.example.eventglow.BuildConfig
+import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.EventCategory
@@ -28,7 +29,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 
-class EventsManagementViewModel : ViewModel() {
+class EventsManagementViewModel(application: Application) : BaseViewModel(application) {
 
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events.asStateFlow()

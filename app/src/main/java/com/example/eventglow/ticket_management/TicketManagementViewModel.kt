@@ -1,8 +1,9 @@
 package com.example.eventglow.ticket_management
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.dataClass.TicketType
 import com.example.eventglow.dataClass.Transaction
 import com.example.eventglow.reportingandanalytics.TicketAnalyticsRepository
@@ -18,7 +19,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-class TicketManagementViewModel : ViewModel() {
+class TicketManagementViewModel(application: Application) : BaseViewModel(application) {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val repository = TicketAnalyticsRepository(firestore)
@@ -28,9 +29,6 @@ class TicketManagementViewModel : ViewModel() {
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     private val _attendees = MutableStateFlow<List<ManagedTicketAttendee>>(emptyList())
     val attendees: StateFlow<List<ManagedTicketAttendee>> = _attendees.asStateFlow()
@@ -45,14 +43,10 @@ class TicketManagementViewModel : ViewModel() {
         fetchManagedEvents()
     }
 
-    fun clearError() {
-        _errorMessage.value = null
-    }
-
     fun fetchManagedEvents() {
         viewModelScope.launch {
             _isLoading.value = true
-            _errorMessage.value = null
+            clearError()
             try {
                 val aggregate = repository.fetchAggregate()
                 val mappedEvents = aggregate.events.map { snapshot ->
@@ -82,7 +76,7 @@ class TicketManagementViewModel : ViewModel() {
                     )
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Failed to load ticket management data."
+                setFailure(e.message ?: "Failed to load ticket management data.")
             } finally {
                 _isLoading.value = false
             }
@@ -91,7 +85,7 @@ class TicketManagementViewModel : ViewModel() {
 
     fun loadAttendeesForEvent(eventId: String) {
         viewModelScope.launch {
-            _errorMessage.value = null
+            clearError()
             try {
                 _attendees.value = repository.loadAttendeesForEvent(eventId).map {
                     ManagedTicketAttendee(
@@ -106,17 +100,17 @@ class TicketManagementViewModel : ViewModel() {
                     )
                 }
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Failed to load attendees."
+                setFailure(e.message ?: "Failed to load attendees.")
             }
         }
     }
 
     fun updateEventTicketTypes(eventId: String, ticketTypes: List<TicketType>, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
-            _errorMessage.value = null
+            clearError()
             try {
                 if (ticketTypes.isEmpty()) {
-                    _errorMessage.value = "At least one ticket type is required."
+                    setFailure("At least one ticket type is required.")
                     onDone(false)
                     return@launch
                 }
@@ -124,7 +118,7 @@ class TicketManagementViewModel : ViewModel() {
                 fetchManagedEvents()
                 onDone(true)
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Failed to update ticket types."
+                setFailure(e.message ?: "Failed to update ticket types.")
                 onDone(false)
             }
         }

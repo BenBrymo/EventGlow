@@ -32,6 +32,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -86,6 +87,8 @@ fun TicketDetailScreen(
 ) {
     val boughtTickets by userViewModel.boughtTickets.collectAsState()
     val isLoading by userViewModel.isLoading.collectAsState()
+    val isSubmittingRefundRequest by userViewModel.isSubmittingRefundRequest.collectAsState()
+    val refundRequestMessage by userViewModel.refundRequestMessage.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -138,6 +141,12 @@ fun TicketDetailScreen(
             transactionError = it.message ?: "Transaction details unavailable."
         }
         isTransactionLoading = false
+    }
+
+    LaunchedEffect(refundRequestMessage) {
+        val message = refundRequestMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        userViewModel.clearRefundRequestMessage()
     }
 
     Scaffold(
@@ -196,6 +205,10 @@ fun TicketDetailScreen(
                     isTransactionLoading = isTransactionLoading,
                     transactionError = transactionError,
                     qrBitmap = qrBitmap,
+                    isSubmittingRefundRequest = isSubmittingRefundRequest,
+                    onSubmitRefund = { reason ->
+                        userViewModel.submitRefundRequest(ticket, reason)
+                    },
                     onDownloadQr = {
                         createDocumentLauncher.launch("EventGlow_${ticket.transactionReference.orEmpty()}.png")
                     }
@@ -212,8 +225,12 @@ private fun TicketDetailContent(
     isTransactionLoading: Boolean,
     transactionError: String?,
     qrBitmap: Bitmap?,
+    isSubmittingRefundRequest: Boolean,
+    onSubmitRefund: (String) -> Unit,
     onDownloadQr: () -> Unit
 ) {
+    var refundReason by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -246,6 +263,41 @@ private fun TicketDetailContent(
                     DetailRow(
                         "Scanned By",
                         ticket.scannedByAdminName.ifBlank { ticket.scannedByAdminId.ifBlank { "N/A" } })
+                }
+            }
+        }
+
+        if (!ticket.isFreeTicket && ticket.paymentStatus.equals("success", ignoreCase = true)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "Need a refund?",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    OutlinedTextField(
+                        value = refundReason,
+                        onValueChange = { refundReason = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Enter refund reason (optional)") },
+                        minLines = 2,
+                        maxLines = 4
+                    )
+                    Button(
+                        onClick = { onSubmitRefund(refundReason) },
+                        enabled = !isSubmittingRefundRequest,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (isSubmittingRefundRequest) "Submitting..." else "Request Refund")
+                    }
                 }
             }
         }
@@ -393,7 +445,7 @@ private fun TicketHeaderCard(ticket: BoughtTicket) {
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = "${formatDisplayDate(ticket.startDate.ifBlank { "N/A" })}  •  ${formatDisplayDate(ticket.endDate.ifBlank { "N/A" })}",
+                        text = "${formatDisplayDate(ticket.startDate.ifBlank { "N/A" })}  •  ${formatDisplayDate(ticket.endDate.ifBlank { "•" })}",
                         color = Color.White.copy(alpha = 0.86f),
                         style = MaterialTheme.typography.bodySmall
                     )

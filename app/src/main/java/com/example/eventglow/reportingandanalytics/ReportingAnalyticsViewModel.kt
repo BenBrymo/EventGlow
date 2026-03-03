@@ -1,7 +1,8 @@
 package com.example.eventglow.reportingandanalytics
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
 import androidx.lifecycle.viewModelScope
+import com.example.eventglow.common.BaseViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,16 +12,13 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-class ReportingAnalyticsViewModel : ViewModel() {
+class ReportingAnalyticsViewModel(application: Application) : BaseViewModel(application) {
 
     private val repository = TicketAnalyticsRepository()
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     private val _allRows = MutableStateFlow<List<ReportingEventRow>>(emptyList())
     val allRows: StateFlow<List<ReportingEventRow>> = _allRows.asStateFlow()
@@ -38,7 +36,7 @@ class ReportingAnalyticsViewModel : ViewModel() {
     fun refresh() {
         viewModelScope.launch {
             _isLoading.value = true
-            _errorMessage.value = null
+            clearError()
             try {
                 val aggregate = repository.fetchAggregate()
                 val mapped = aggregate.events.map { event ->
@@ -61,15 +59,11 @@ class ReportingAnalyticsViewModel : ViewModel() {
                 )
                 applyFilters()
             } catch (e: Exception) {
-                _errorMessage.value = e.message ?: "Failed to load reporting data."
+                setFailure(e.message ?: "Failed to load reporting data.")
             } finally {
                 _isLoading.value = false
             }
         }
-    }
-
-    fun clearError() {
-        _errorMessage.value = null
     }
 
     fun filterRowsByPeriod(period: ReportingPeriod, start: Date? = null, end: Date? = null): List<ReportingEventRow> {

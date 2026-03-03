@@ -24,6 +24,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.eventglow.navigation.Routes
+import com.example.eventglow.settings.ChangePasswordScreen
+import com.example.eventglow.settings.UpdateProfileScreen
 import com.example.eventglow.ui.theme.BottomNavGray
 import com.example.eventglow.ui.theme.BrandPrimary
 import com.example.eventglow.ui.theme.LightGrayText
@@ -196,7 +198,7 @@ fun BottomNavGraph(
         }
 
         composable(RoutesUser.HELP_CENTER) {
-            HelpCenterScreen(navController = navController)
+            UserHelpCenterScreen(navController = navController)
         }
 
         composable(

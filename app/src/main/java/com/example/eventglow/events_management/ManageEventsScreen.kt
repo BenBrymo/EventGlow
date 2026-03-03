@@ -60,7 +60,9 @@ fun ManageEventsScreen(
 ) {
     val focusManager = LocalFocusManager.current
     val events by viewModel.events.collectAsState()
+    val vmErrorMessage by viewModel.errorMessage.collectAsState()
     val fetchState by viewModel.fetchEventsState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
     val isRefreshing = fetchState is FetchEventsState.Loading
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val refreshFlagFlow = remember(currentBackStackEntry) {
@@ -91,8 +93,16 @@ fun ManageEventsScreen(
         }
     }
 
+    LaunchedEffect(vmErrorMessage) {
+        val message = vmErrorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearError()
+    }
+
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = Background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddEvent,

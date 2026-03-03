@@ -25,11 +25,11 @@ import com.example.eventglow.events_management.FilteredResultScreenAdmin
 import com.example.eventglow.events_management.ManageEventsScreen
 import com.example.eventglow.notifications.NotificationsScreen
 import com.example.eventglow.reportingandanalytics.AnalyticsScreen
-import com.example.eventglow.settings.AdminChangePasswordScreen
 import com.example.eventglow.settings.AdminHelpCenterScreen
 import com.example.eventglow.settings.AdminSettingsScreen
 import com.example.eventglow.settings.AdminSupportScreen
-import com.example.eventglow.settings.AdminUpdateProfileScreen
+import com.example.eventglow.settings.ChangePasswordScreen
+import com.example.eventglow.settings.UpdateProfileScreen
 import com.example.eventglow.ticket_management.ScanQrScreen
 import com.example.eventglow.ticket_management.TicketManagementScreen
 import com.example.eventglow.user.UserMainScreen
@@ -225,7 +225,7 @@ fun NavGraph(navController: NavHostController) {
         }
 
         composable(Routes.ADMIN_CHANGE_PASSWORD_SCREEN) {
-            AdminChangePasswordScreen(
+            ChangePasswordScreen(
                 onBackClick = { navController.popBackStack() }
             )
         }
@@ -242,7 +242,7 @@ fun NavGraph(navController: NavHostController) {
         }
 
         composable(Routes.ADMIN_UPDATE_PROFILE_SCREEN) {
-            AdminUpdateProfileScreen(
+            UpdateProfileScreen(
                 onBack = { navController.popBackStack() }
             )
         }

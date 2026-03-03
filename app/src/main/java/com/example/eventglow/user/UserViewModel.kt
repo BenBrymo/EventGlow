@@ -2,8 +2,8 @@ package com.example.eventglow.user
 
 import android.app.Application
 import android.util.Log
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.EventCategory
@@ -24,7 +24,7 @@ import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
-class UserViewModel(application: Application) : AndroidViewModel(application) {
+class UserViewModel(application: Application) : BaseViewModel(application) {
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
@@ -69,6 +69,12 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _ticketErrorMessage = MutableStateFlow<String?>(null)
     val ticketErrorMessage: StateFlow<String?> = _ticketErrorMessage.asStateFlow()
+
+    private val _isSubmittingRefundRequest = MutableStateFlow(false)
+    val isSubmittingRefundRequest: StateFlow<Boolean> = _isSubmittingRefundRequest.asStateFlow()
+
+    private val _refundRequestMessage = MutableStateFlow<String?>(null)
+    val refundRequestMessage: StateFlow<String?> = _refundRequestMessage.asStateFlow()
 
     private var hasObservedBoughtTickets = false
 
@@ -604,6 +610,79 @@ class UserViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearTicketError() {
         _ticketErrorMessage.value = null
+    }
+
+    fun clearRefundRequestMessage() {
+        _refundRequestMessage.value = null
+    }
+
+    fun submitRefundRequest(ticket: BoughtTicket, reason: String) {
+        viewModelScope.launch {
+            if (_isSubmittingRefundRequest.value) return@launch
+
+            val uid = auth.currentUser?.uid?.trim().orEmpty()
+            val email = auth.currentUser?.email?.trim().orEmpty()
+            if (uid.isBlank()) {
+                _refundRequestMessage.value = "No signed-in user found."
+                return@launch
+            }
+
+            val reference = ticket.transactionReference.orEmpty().trim()
+            if (reference.isBlank()) {
+                _refundRequestMessage.value = "Missing transaction reference."
+                return@launch
+            }
+
+            if (ticket.isFreeTicket) {
+                _refundRequestMessage.value = "Free tickets are not eligible for refund."
+                return@launch
+            }
+
+            if (!ticket.paymentStatus.equals("success", ignoreCase = true)) {
+                _refundRequestMessage.value = "Refund is only available for successful payments."
+                return@launch
+            }
+
+            val reasonValue = reason.trim().ifBlank { "No reason provided." }
+            val now = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }.format(Date())
+
+            val payload = mapOf(
+                "id" to reference,
+                "transactionReference" to reference,
+                "userId" to uid,
+                "userEmail" to email,
+                "eventId" to ticket.eventId.orEmpty(),
+                "eventName" to ticket.eventName.orEmpty(),
+                "ticketName" to ticket.ticketName.orEmpty(),
+                "amount" to ticket.paymentAmount.ifBlank { ticket.ticketPrice.ifBlank { "0" } },
+                "currency" to ticket.paymentCurrency.ifBlank { "GHS" },
+                "reason" to reasonValue,
+                "status" to "pending",
+                "createdAt" to now,
+                "reviewedAt" to "",
+                "reviewedByAdminId" to "",
+                "adminNote" to ""
+            )
+
+            _isSubmittingRefundRequest.value = true
+            _refundRequestMessage.value = null
+
+            try {
+                firestore.collection("refundRequests")
+                    .document(reference)
+                    .set(payload, SetOptions.merge())
+                    .await()
+
+                _refundRequestMessage.value = "Refund request submitted."
+            } catch (e: Exception) {
+                Log.e("UserViewModel", "Error submitting refund request", e)
+                _refundRequestMessage.value = e.localizedMessage ?: "Failed to submit refund request."
+            } finally {
+                _isSubmittingRefundRequest.value = false
+            }
+        }
     }
 
     fun refreshBoughtTickets() {

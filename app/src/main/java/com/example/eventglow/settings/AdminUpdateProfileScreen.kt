@@ -30,7 +30,7 @@ import com.example.eventglow.ui.theme.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdminUpdateProfileScreen(
+fun UpdateProfileScreen(
     onBack: () -> Unit = {},
     onDeletePhoto: () -> Unit = {},
     onSave: (String, String) -> Unit = { _, _ -> },
@@ -188,5 +188,5 @@ private fun AdminUpdateProfileTextField(
 @Preview(showBackground = true, apiLevel = 34)
 @Composable
 fun AdminUpdateProfileScreenPreview() {
-    AdminUpdateProfileScreen()
+    UpdateProfileScreen()
 }
