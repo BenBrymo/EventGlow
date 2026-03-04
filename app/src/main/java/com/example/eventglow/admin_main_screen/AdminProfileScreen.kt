@@ -110,11 +110,11 @@ fun AdminProfileScreen(
     ) { uri ->
         uri?.let { imageUrl ->
             scope.launch {
-                val cloudinaryUrl = viewModel.uploadImageToCloudinary(
+                val storageUrl = viewModel.uploadImageToSupabaseStorage(
                     imageUri = imageUrl,
                     folder = "eventGlow/profile"
                 ) ?: return@launch
-                val uriToStore = cloudinaryUrl
+                val uriToStore = storageUrl
 
                 profilePictureUrl = uriToStore.toUri()
                 viewModel.updateProfileImageUrlInSharedPreferences(uriToStore)
@@ -131,11 +131,11 @@ fun AdminProfileScreen(
     ) { uri ->
         uri?.let { imageUrl ->
             scope.launch {
-                val cloudinaryUrl = viewModel.uploadImageToCloudinary(
+                val storageUrl = viewModel.uploadImageToSupabaseStorage(
                     imageUri = imageUrl,
                     folder = "eventGlow/header"
                 ) ?: return@launch
-                val uriToStore = cloudinaryUrl
+                val uriToStore = storageUrl
 
                 headerPictureUrl = uriToStore.toUri()
                 viewModel.updateHeaderInSharedPreferences(uriToStore)

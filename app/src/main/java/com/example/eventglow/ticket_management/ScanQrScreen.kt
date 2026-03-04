@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,6 +40,12 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.launch
 
+private sealed class ScanOutcomeUiState {
+    data object Idle : ScanOutcomeUiState()
+    data class Success(val title: String, val detail: String) : ScanOutcomeUiState()
+    data class Failure(val title: String, val detail: String) : ScanOutcomeUiState()
+}
+
 
 @Composable
 fun ScanQrScreen(
@@ -46,6 +55,7 @@ fun ScanQrScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var statusText by remember { mutableStateOf("Ready to scan") }
+    var scanOutcome by remember { mutableStateOf<ScanOutcomeUiState>(ScanOutcomeUiState.Idle) }
     val scannerOptions = remember {
         GmsBarcodeScannerOptions.Builder()
             .enableAutoZoom()
@@ -76,19 +86,35 @@ fun ScanQrScreen(
                                         val eventLabel =
                                             if (result.eventName.isBlank()) "" else " (${result.eventName})"
                                         statusText = "Valid ticket${eventLabel}. Marked as scanned."
+                                        scanOutcome = ScanOutcomeUiState.Success(
+                                            title = "Ticket Verified",
+                                            detail = "Reference ${result.reference}$eventLabel marked as scanned."
+                                        )
                                     }
 
                                     is TicketScanResult.NotFound -> {
                                         statusText = "Ticket not found for reference ${result.reference}."
+                                        scanOutcome = ScanOutcomeUiState.Failure(
+                                            title = "Ticket Not Found",
+                                            detail = "No ticket was found for ${result.reference}."
+                                        )
                                     }
 
                                     is TicketScanResult.AlreadyScanned -> {
                                         val by = result.scannedBy.ifBlank { "another admin" }
                                         statusText = "Already scanned by $by at ${result.scannedAt}."
+                                        scanOutcome = ScanOutcomeUiState.Failure(
+                                            title = "Already Scanned",
+                                            detail = "Scanned by $by at ${result.scannedAt}."
+                                        )
                                     }
 
                                     is TicketScanResult.Error -> {
                                         statusText = result.message
+                                        scanOutcome = ScanOutcomeUiState.Failure(
+                                            title = "Scan Failed",
+                                            detail = result.message
+                                        )
                                     }
                                 }
                             }
@@ -101,6 +127,10 @@ fun ScanQrScreen(
                             } else {
                                 exception.message ?: "Scan failed."
                             }
+                            scanOutcome = ScanOutcomeUiState.Failure(
+                                title = "Scan Failed",
+                                detail = statusText
+                            )
                         }
                 }
             )
@@ -114,6 +144,39 @@ fun ScanQrScreen(
         ) {
             CameraPreview(modifier = Modifier.fillMaxSize())
             ScannerOverlay()
+
+            when (val outcome = scanOutcome) {
+                is ScanOutcomeUiState.Idle -> Unit
+                is ScanOutcomeUiState.Success -> {
+                    ScanResultOverlay(
+                        isSuccess = true,
+                        title = outcome.title,
+                        detail = outcome.detail,
+                        primaryLabel = "Scan Another",
+                        secondaryLabel = "Back to Tickets",
+                        onPrimary = {
+                            scanOutcome = ScanOutcomeUiState.Idle
+                            statusText = "Ready to scan"
+                        },
+                        onSecondary = onBackClick
+                    )
+                }
+
+                is ScanOutcomeUiState.Failure -> {
+                    ScanResultOverlay(
+                        isSuccess = false,
+                        title = outcome.title,
+                        detail = outcome.detail,
+                        primaryLabel = "Try Again",
+                        secondaryLabel = "Back",
+                        onPrimary = {
+                            scanOutcome = ScanOutcomeUiState.Idle
+                            statusText = "Ready to scan"
+                        },
+                        onSecondary = onBackClick
+                    )
+                }
+            }
         }
     }
 }
@@ -217,6 +280,73 @@ fun CameraPreview(
         modifier = modifier
             .background(Color.Black)
     )
+}
+
+@Composable
+private fun ScanResultOverlay(
+    isSuccess: Boolean,
+    title: String,
+    detail: String,
+    primaryLabel: String,
+    secondaryLabel: String,
+    onPrimary: () -> Unit,
+    onSecondary: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.68f))
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.widthIn(max = 560.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = if (isSuccess) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    tint = if (isSuccess) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = detail,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Button(
+                        onClick = onPrimary,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(primaryLabel)
+                    }
+                    Spacer(modifier = Modifier.size(10.dp))
+                    OutlinedButton(
+                        onClick = onSecondary,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(secondaryLabel)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Preview(showBackground = true, apiLevel = 34)

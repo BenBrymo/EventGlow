@@ -99,7 +99,9 @@ class LoginViewModel(application: Application) : BaseViewModel(application) {
             val role = document.getString("role").orEmpty()
 
             val boughtTickets = mapListToBoughtTickets(document.get("boughtTickets"))
-            val bookmarks = mapListToEvents(document.get("bookmarks"))
+            val bookmarkEvents = mapListToEvents(document.get("bookmarkEvents")).ifEmpty {
+                mapListToEvents(document.get("bookmarks"))
+            }
             val favoriteEvents =
                 mapListToEvents(document.get("favoriteEvents")).ifEmpty {
                     mapListToEvents(document.get("favouriteEvents"))
@@ -114,7 +116,7 @@ class LoginViewModel(application: Application) : BaseViewModel(application) {
                 role = role,
                 boughtTickets = boughtTickets,
                 filteredEvents = emptyList(),
-                bookmarks = bookmarks,
+                bookmarkEvents = bookmarkEvents,
                 favoriteEvents = favoriteEvents
             )
 

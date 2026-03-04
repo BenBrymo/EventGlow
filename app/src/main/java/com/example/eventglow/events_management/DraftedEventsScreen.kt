@@ -44,17 +44,26 @@ fun DraftedEventsScreen(navController: NavController, viewModel: EventsManagemen
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var eventToDelete by remember { mutableStateOf<Event?>(null) }
+    val draftedEvents by viewModel.draftedEvents.collectAsState()
+    val fetchState by viewModel.fetchEventsState.collectAsState()
+    val vmErrorMessage by viewModel.errorMessage.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     //Fetch drafted events on initial composition
     LaunchedEffect(Unit) {
         viewModel.fetchEvents()
     }
 
-    val draftedEvents by viewModel.draftedEvents.collectAsState()
+    LaunchedEffect(vmErrorMessage) {
+        val message = vmErrorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearError()
+    }
 
     // Scaffold to provide a basic material layout structure
     Scaffold(
         containerColor = Background,
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         // top bar
         topBar = {
             TopAppBar(
@@ -84,14 +93,27 @@ fun DraftedEventsScreen(navController: NavController, viewModel: EventsManagemen
             modifier = Modifier.padding(paddingValues),
             color = Background
         ) {
-            DraftedEventsMgt(
-                navController = navController,
-                onDeleteEventClick = { event ->
-                    eventToDelete = event
-                    showDeleteDialog = true
-                },
-                draftedEvents = draftedEvents,
-            )
+            when {
+                fetchState is FetchEventsState.Loading && draftedEvents.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+
+                else -> {
+                    DraftedEventsMgt(
+                        navController = navController,
+                        onDeleteEventClick = { event ->
+                            eventToDelete = event
+                            showDeleteDialog = true
+                        },
+                        draftedEvents = draftedEvents,
+                    )
+                }
+            }
         }
 
         // Delete Confirmation Dialog

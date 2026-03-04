@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.eventglow.R
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.UserPreferences
 import com.example.eventglow.events_management.EventsManagementViewModel
@@ -37,13 +38,22 @@ fun FavouriteScreen(
     modifier: Modifier = Modifier
 ) {
     val favouriteEvents by viewModel.favoriteEvents.collectAsState()
-
     val isLoading by viewModel.isLoading.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(Unit) {
         viewModel.fetchFavoriteEvents()
     }
 
+    LaunchedEffect(errorMessage) {
+        val message = errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
+        viewModel.clearError()
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("Favourite Events") },
@@ -146,7 +156,9 @@ fun FavouriteEventItem(
             ) {
                 // Image at the top of the card
                 Image(
-                    painter = rememberAsyncImagePainter(event.imageUri!!.toUri()),
+                    painter = rememberAsyncImagePainter(
+                        model = event.imageUri?.takeUnless { it.isBlank() }?.toUri() ?: R.drawable.applogo
+                    ),
                     contentDescription = event.eventName,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

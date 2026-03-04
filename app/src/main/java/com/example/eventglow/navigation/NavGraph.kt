@@ -14,7 +14,6 @@ import com.example.eventglow.common.email_verification.EmailVerificationScreen
 import com.example.eventglow.common.login.loginScreen
 import com.example.eventglow.common.password_reset.PasswordResetConfirmationScreen
 import com.example.eventglow.common.password_reset.passwordRecoveryScreen
-import com.example.eventglow.events_management.AdminSearchScreen
 import com.example.eventglow.events_management.CopyEventScreen
 import com.example.eventglow.events_management.CreateEventScreen
 import com.example.eventglow.events_management.DraftedEventsScreen
@@ -34,7 +33,6 @@ import com.example.eventglow.ticket_management.ScanQrScreen
 import com.example.eventglow.ticket_management.TicketManagementScreen
 import com.example.eventglow.user.UserMainScreen
 import com.example.eventglow.user_management.ManageUsersScreen
-import com.example.eventglow.user_management.UserManagementSearchScreen
 
 
 object Routes {
@@ -146,10 +144,10 @@ fun NavGraph(navController: NavHostController) {
             )
         }
 
-        // defines admin search screen route
-        composable(Routes.ADMIN_SEARCH_SCREEN) {
-            AdminSearchScreen(navController = navController)
-        }
+//        // defines admin search screen route
+//        composable(Routes.ADMIN_SEARCH_SCREEN) {
+//            AdminSearchScreen(navController = navController)
+//        }
 
         //defines detailed event admin screen route
         composable(
@@ -212,9 +210,9 @@ fun NavGraph(navController: NavHostController) {
             ManageUsersScreen(navController = navController)
         }
 
-        composable(Routes.USER_MANAGEMENT_SEARCH_SCREEN) {
-            UserManagementSearchScreen(navController = navController)
-        }
+//        composable(Routes.USER_MANAGEMENT_SEARCH_SCREEN) {
+//            UserManagementSearchScreen(navController = navController)
+//        }
 
         composable(Routes.REPORTING_AND_ANALYTICS) {
             AnalyticsScreen()

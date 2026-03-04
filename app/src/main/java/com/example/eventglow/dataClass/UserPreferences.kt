@@ -13,8 +13,10 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
     private val sharedPreferences =
         getApplication<Application>().getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
     val gson = Gson()
+    private val bookmarkEventsKey = "BOOKMARK_EVENTS"
+    private val legacyBookmarksKey = "BOOKMARKS"
 
-    // Save user info, bookmarks, and favorite events
+    // Save user info, bookmark events, and favorite events
     fun saveUserInfo(
         email: String,
         userName: String,
@@ -24,7 +26,7 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
         role: String,
         boughtTickets: List<BoughtTicket>,
         filteredEvents: List<Event>,
-        bookmarks: List<Event>,
+        bookmarkEvents: List<Event>,
         favoriteEvents: List<Event>
     ) {
         with(sharedPreferences.edit()) {
@@ -36,7 +38,7 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
             putString("ROLE", role)
             putString("BOUGHT_TICKETS", gson.toJson(boughtTickets)) // Convert list of BoughtTicket to JSON
             putString("FILTERED_EVENTS", gson.toJson(filteredEvents))
-            putString("BOOKMARKS", gson.toJson(bookmarks)) // Convert list of bookmarks (IDs) to JSON
+            putString(bookmarkEventsKey, gson.toJson(bookmarkEvents))
             putString("FAVORITE_EVENTS", gson.toJson(favoriteEvents)) // Convert list of favorite event IDs to JSON
             apply() // Start saving process
         }
@@ -53,7 +55,10 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
             "ROLE" to sharedPreferences.getString("ROLE", null),
             "BOUGHT_TICKETS" to sharedPreferences.getString("BOUGHT_TICKETS", null),
             "FILTERED_EVENTS" to sharedPreferences.getString("FILTERED_EVENTS", null),
-            "BOOKMARKS" to sharedPreferences.getString("BOOKMARKS", null),
+            "BOOKMARK_EVENTS" to sharedPreferences.getString(
+                bookmarkEventsKey,
+                sharedPreferences.getString(legacyBookmarksKey, null)
+            ),
             "FAVORITE_EVENTS" to sharedPreferences.getString("FAVORITE_EVENTS", null)
         )
     }
@@ -87,8 +92,8 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun getBookmarks(): List<Event>? {
-        val json = sharedPreferences.getString("BOOKMARKS", null)
+    fun getBookmarkEvents(): List<Event>? {
+        val json = sharedPreferences.getString(bookmarkEventsKey, sharedPreferences.getString(legacyBookmarksKey, null))
         return if (json != null) {
             val type = object : TypeToken<List<Event>>() {}.type
             gson.fromJson(json, type)
@@ -185,23 +190,23 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun addBookmark(bookmark: Event) {
-        val currentBookmarks = getBookmarks()?.toMutableList() ?: mutableListOf()
-        if (!currentBookmarks.contains(bookmark)) {
-            currentBookmarks.add(bookmark)
+    fun addBookmarkEvent(bookmarkEvent: Event) {
+        val currentBookmarkEvents = getBookmarkEvents()?.toMutableList() ?: mutableListOf()
+        if (!currentBookmarkEvents.contains(bookmarkEvent)) {
+            currentBookmarkEvents.add(bookmarkEvent)
             with(sharedPreferences.edit()) {
-                putString("BOOKMARKS", gson.toJson(currentBookmarks)) // Convert list of bookmarks to JSON
+                putString(bookmarkEventsKey, gson.toJson(currentBookmarkEvents))
                 apply() // Start saving process
             }
         }
     }
 
-    fun removeBookmark(bookmark: Event) {
-        val currentBookmarks = getBookmarks()?.toMutableList() ?: mutableListOf()
-        if (currentBookmarks.contains(bookmark)) {
-            currentBookmarks.remove(bookmark)
+    fun removeBookmarkEvent(bookmarkEvent: Event) {
+        val currentBookmarkEvents = getBookmarkEvents()?.toMutableList() ?: mutableListOf()
+        if (currentBookmarkEvents.contains(bookmarkEvent)) {
+            currentBookmarkEvents.remove(bookmarkEvent)
             with(sharedPreferences.edit()) {
-                putString("BOOKMARKS", gson.toJson(currentBookmarks)) // Convert list of bookmarks to JSON
+                putString(bookmarkEventsKey, gson.toJson(currentBookmarkEvents))
                 apply() // Start saving process
             }
         }
@@ -218,6 +223,20 @@ class UserPreferences(application: Application) : AndroidViewModel(application) 
                 ) // Convert list of favorite event IDs to JSON
                 apply() // Start saving process
             }
+        }
+    }
+
+    fun setBookmarkEvents(bookmarkEvents: List<Event>) {
+        with(sharedPreferences.edit()) {
+            putString(bookmarkEventsKey, gson.toJson(bookmarkEvents))
+            apply()
+        }
+    }
+
+    fun setFavoriteEvents(favoriteEvents: List<Event>) {
+        with(sharedPreferences.edit()) {
+            putString("FAVORITE_EVENTS", gson.toJson(favoriteEvents))
+            apply()
         }
     }
 

@@ -8,4 +8,5 @@ object RoutesUser {
     const val UPDATE_PROFILE = "update_profile_screen"
     const val CHANGE_PASSWORD = "change_password_screen"
     const val SUPPORT = "support_screen"
+    const val PURCHASE_RESULT = "purchase_result_screen"
 }

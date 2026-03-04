@@ -551,19 +551,25 @@ private fun buildSections(events: List<Event>): UserHomeSections {
         )
     }
 
-    val live = withDates
-        .filter { candidate ->
-            !now.before(candidate.startAt) && !now.after(candidate.endAt)
+    val live = mutableListOf<Event>()
+    val today = mutableListOf<Event>()
+    val upcoming = mutableListOf<Event>()
+
+    withDates.forEach { candidate ->
+        when {
+            !now.before(candidate.startAt) && !now.after(candidate.endAt) -> {
+                live.add(candidate.event)
+            }
+
+            candidate.startDate == todayDate && candidate.startAt.after(now) -> {
+                today.add(candidate.event)
+            }
+
+            candidate.startDate.after(todayDate) -> {
+                upcoming.add(candidate.event)
+            }
         }
-        .map { it.event }
-
-    val today = withDates
-        .filter { candidate -> candidate.startDate == todayDate }
-        .map { it.event }
-
-    val upcoming = withDates
-        .filter { candidate -> candidate.startAt.after(now) }
-        .map { it.event }
+    }
 
     return UserHomeSections(
         liveEvents = live,

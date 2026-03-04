@@ -36,6 +36,7 @@ import com.example.eventglow.ui.theme.TextSecondary
 @Composable
 fun UserSettingsScreen(
     navController: NavController,
+    rootNavController: NavController = navController,
     mainActivityViewModel: MainActivityViewModel = viewModel(),
     notificationSettingsViewModel: NotificationSettingsViewModel = viewModel()
 ) {
@@ -67,7 +68,7 @@ fun UserSettingsScreen(
             onHelpCenter = { navController.navigate(RoutesUser.HELP_CENTER) },
             onLogout = {
                 mainActivityViewModel.signOut(
-                    onSuccess = { navController.navigateAndClearTo(Routes.LOGIN_SCREEN) },
+                    onSuccess = { rootNavController.navigateAndClearTo(Routes.LOGIN_SCREEN) },
                     onError = { error ->
                         Log.d("UserSettingsScreen", "Logout failed: ${error.message}")
                     }

@@ -2,6 +2,8 @@ package com.example.eventglow.user
 
 import android.net.Uri
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,6 +37,7 @@ import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.navigation.navigateAndClearTo
 import com.example.eventglow.navigation.navigateSingleTop
+import kotlinx.coroutines.launch
 
 
 private fun String?.toImageUriOrNull(): Uri? {
@@ -49,12 +52,42 @@ fun ProfileScreen(
     mainNavController: NavController, // Main NavController
     bottomNavController: NavController, // Bottom NavController
     sharedPreferencesViewModel: SharedPreferencesViewModel = viewModel(),
+    userViewModel: UserViewModel = viewModel(),
     mainActivityViewModel: MainActivityViewModel = viewModel()
 ) {
     val userData by sharedPreferencesViewModel.userInfo.collectAsState()
     val username = userData["USERNAME"]
     val profileImageUri = userData["PROFILE_PICTURE_URL"].toImageUriOrNull()
     val headerImageUri = userData["HEADER_PICTURE_URL"].toImageUriOrNull()
+    val scope = rememberCoroutineScope()
+
+    val profileImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val storageUrl = userViewModel.uploadImageToSupabaseStorage(
+                imageUri = uri,
+                folder = "eventGlow/profile"
+            ) ?: return@launch
+            userViewModel.updateProfilePictureUrlInFirestore(storageUrl)
+            sharedPreferencesViewModel.refreshUserInfo()
+        }
+    }
+
+    val headerImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri ?: return@rememberLauncherForActivityResult
+        scope.launch {
+            val storageUrl = userViewModel.uploadImageToSupabaseStorage(
+                imageUri = uri,
+                folder = "eventGlow/header"
+            ) ?: return@launch
+            userViewModel.updateHeaderPictureUrlInFirestore(storageUrl)
+            sharedPreferencesViewModel.refreshUserInfo()
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -64,6 +97,8 @@ fun ProfileScreen(
             username = username,
             headerImageData = headerImageUri,
             profileImageData = profileImageUri,
+            onHeaderImageClick = { headerImagePickerLauncher.launch("image/*") },
+            onProfileImageClick = { profileImagePickerLauncher.launch("image/*") },
             onFavoriteEvents = { bottomNavController.navigateSingleTop(RoutesUser.FAVOURITE_EVENTS_SCREEN) },
             onTransactions = { bottomNavController.navigateSingleTop(RoutesUser.TRANSACTIONS) },
             onHelpCenter = { bottomNavController.navigateSingleTop(RoutesUser.HELP_CENTER) },
@@ -86,6 +121,8 @@ private fun ProfileScreenContent(
     username: String?,
     headerImageData: Any?,
     profileImageData: Any?,
+    onHeaderImageClick: () -> Unit,
+    onProfileImageClick: () -> Unit,
     onFavoriteEvents: () -> Unit,
     onTransactions: () -> Unit,
     onHelpCenter: () -> Unit,
@@ -114,7 +151,9 @@ private fun ProfileScreenContent(
                 fallback = fallbackPainter,
                 error = fallbackPainter,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(onClick = onHeaderImageClick)
             )
 
             Box(
@@ -132,7 +171,9 @@ private fun ProfileScreenContent(
                     fallback = fallbackPainter,
                     error = fallbackPainter,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(onClick = onProfileImageClick)
                 )
             }
         }
@@ -242,6 +283,8 @@ fun ProfileScreenPreview() {
             username = "BenBrymo",
             headerImageData = R.drawable.applogo,
             profileImageData = R.drawable.user_logo,
+            onHeaderImageClick = {},
+            onProfileImageClick = {},
             onFavoriteEvents = {},
             onTransactions = {},
             onHelpCenter = {},

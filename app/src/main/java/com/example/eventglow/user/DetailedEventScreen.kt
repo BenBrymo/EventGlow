@@ -1,6 +1,7 @@
 package com.example.eventglow.user
 
 import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -155,6 +156,12 @@ fun DetailedEventScreen(
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    fun navigateToPurchaseResult(status: String, reference: String? = null, message: String? = null) {
+        val route = "${RoutesUser.PURCHASE_RESULT}/$status?reference=${Uri.encode(reference.orEmpty())}&message=${
+            Uri.encode(message.orEmpty())
+        }"
+        navController.navigate(route)
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -248,17 +255,11 @@ fun DetailedEventScreen(
                         "VerificationResult",
                         "Payment verification error: ${(verificationResult as VerificationResult.Error).message}"
                     )
-                    val action = snackbarHostState.showSnackbar(
-                        message = (verificationResult as VerificationResult.Error).message,
-                        actionLabel = "Retry verify"
+                    navigateToPurchaseResult(
+                        status = "failure",
+                        reference = pendingTransactionReference.ifBlank { null },
+                        message = (verificationResult as VerificationResult.Error).message
                     )
-                    if (action == SnackbarResult.ActionPerformed && pendingTransactionReference.isNotBlank()) {
-                        paymentViewModel.transactionReference = pendingTransactionReference
-                        purchaseFlowState = PurchaseFlowState.VERIFYING
-                        paymentViewModel.verifyTransaction()
-                    } else if (purchaseFlowState != PurchaseFlowState.AWAITING_VERIFICATION) {
-                        purchaseFlowState = PurchaseFlowState.IDLE
-                    }
                 }
 
                 is VerificationResult.Idle -> {
@@ -280,11 +281,10 @@ fun DetailedEventScreen(
                     selectedTicketType?.let { ticketType ->
                         val normalizedTransaction = verifiedTransaction?.copy(reference = ticketReference)
                         if (normalizedTransaction == null || ticketReference.isBlank()) {
-                            Toast.makeText(
-                                context,
-                                "Missing verified transaction reference.",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            navigateToPurchaseResult(
+                                status = "failure",
+                                message = "Missing verified transaction reference."
+                            )
                             return@let
                         }
 
@@ -299,7 +299,9 @@ fun DetailedEventScreen(
                             val isStillAvailable = isTicketAvailable(event.id, ticketType)
                             if (!isStillAvailable) {
                                 purchaseFlowState = PurchaseFlowState.FAILED
-                                snackbarHostState.showSnackbar(
+                                navigateToPurchaseResult(
+                                    status = "failure",
+                                    reference = ticketReference,
                                     message = "Ticket is sold out. Verification succeeded but purchase was not completed."
                                 )
                                 return@launch
@@ -316,14 +318,18 @@ fun DetailedEventScreen(
                                 Log.d("DetailedEventScreen", "Processed bought ticket: $boughtTicket")
                                 pendingTransactionReference = ""
                                 purchaseFlowState = PurchaseFlowState.IDLE
-                                navController.navigate(Routes.TICKETS_SCREEN)
+                                navigateToPurchaseResult(
+                                    status = "success",
+                                    reference = ticketReference,
+                                    message = "Your ticket purchase is complete."
+                                )
                             }.onFailure { error ->
                                 purchaseFlowState = PurchaseFlowState.FAILED
-                                Toast.makeText(
-                                    context,
-                                    error.message ?: "Failed to complete purchase.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                navigateToPurchaseResult(
+                                    status = "failure",
+                                    reference = ticketReference,
+                                    message = error.message ?: "Failed to complete purchase."
+                                )
                             }
                         }
                     }
@@ -442,14 +448,18 @@ fun DetailedEventScreen(
                         isCommittingPurchase = false
                         result.onSuccess {
                             purchaseFlowState = PurchaseFlowState.IDLE
-                            navController.navigate(Routes.TICKETS_SCREEN)
+                            navigateToPurchaseResult(
+                                status = "success",
+                                reference = freeReference,
+                                message = "Free ticket issued successfully."
+                            )
                         }.onFailure { error ->
                             purchaseFlowState = PurchaseFlowState.FAILED
-                            Toast.makeText(
-                                context,
-                                error.message ?: "Failed to issue free ticket.",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            navigateToPurchaseResult(
+                                status = "failure",
+                                reference = freeReference,
+                                message = error.message ?: "Failed to issue free ticket."
+                            )
                         }
                         return@launch
                     }
@@ -919,10 +929,10 @@ fun DetailedEventContent(
                                 isBookmarked = !isBookmarked
                                 if (isBookmarked) {
                                     userViewModel.addBookmarkEventToFireStore(event)
-                                    userPreferences.addBookmark(event)
+                                    userPreferences.addBookmarkEvent(event)
                                 } else {
                                     userViewModel.deleteBookmarkEventFromFirestore(event)
-                                    userPreferences.removeBookmark(event)
+                                    userPreferences.removeBookmarkEvent(event)
                                 }
                             }
                         ) {

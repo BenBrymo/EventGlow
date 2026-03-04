@@ -1,8 +1,10 @@
 package com.example.eventglow.user
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.viewModelScope
+import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
@@ -21,6 +23,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -28,6 +34,8 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
 
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance()
+    private val appContext = application.applicationContext
+    private val httpClient = OkHttpClient()
 
     // Create an object of UserPreferences class
     private val sharedPreferences = UserPreferences(application)
@@ -249,7 +257,11 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
     fun fetchFavoriteEvents() {
         viewModelScope.launch {
             try {
-                val userId = auth.currentUser?.uid ?: return@launch
+                val userId = auth.currentUser?.uid
+                if (userId.isNullOrBlank()) {
+                    _favoriteEvents.value = sharedPreferences.getFavoriteEvents().orEmpty()
+                    return@launch
+                }
                 val userDocRef = firestore.collection("users").document(userId)
 
                 // Fetch user's document from Firestore
@@ -284,9 +296,17 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
                 }
 
                 _favoriteEvents.value = favoriteEvents
+                sharedPreferences.setFavoriteEvents(favoriteEvents)
                 Log.d("UserViewModel", "Successfully fetched favorite events.")
             } catch (e: Exception) {
                 Log.e("UserViewModel", "Error fetching favorite events", e)
+                val cachedFavorites = sharedPreferences.getFavoriteEvents().orEmpty()
+                if (cachedFavorites.isNotEmpty()) {
+                    _favoriteEvents.value = cachedFavorites
+                    Log.d("UserViewModel", "Loaded favorite events from SharedPreferences fallback.")
+                } else {
+                    setFailure("Unable to load favorite events.")
+                }
             }
         }
     }
@@ -295,7 +315,12 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val userId = auth.currentUser?.uid ?: return@launch
+                val userId = auth.currentUser?.uid
+                if (userId.isNullOrBlank()) {
+                    _bookmarkEvents.value = sharedPreferences.getBookmarkEvents().orEmpty()
+                    _isLoading.value = false
+                    return@launch
+                }
                 val userDocRef = firestore.collection("users").document(userId)
 
                 // Fetch user's document from Firestore
@@ -330,11 +355,19 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
                 }
 
                 _bookmarkEvents.value = bookmarkEvents
+                sharedPreferences.setBookmarkEvents(bookmarkEvents)
                 _isLoading.value = false
                 Log.d("UserViewModel", "Successfully fetched bookmark events.")
             } catch (e: Exception) {
                 _isLoading.value = false
                 Log.e("UserViewModel", "Error fetching bookmark events", e)
+                val cachedBookmarks = sharedPreferences.getBookmarkEvents().orEmpty()
+                if (cachedBookmarks.isNotEmpty()) {
+                    _bookmarkEvents.value = cachedBookmarks
+                    Log.d("UserViewModel", "Loaded bookmark events from SharedPreferences fallback.")
+                } else {
+                    setFailure("Unable to load bookmark events.")
+                }
             }
         }
     }
@@ -358,6 +391,110 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
             .addOnFailureListener { e ->
                 Log.e("UserViewModel", "Failed to update event status for $eventId", e)
             }
+    }
+
+    suspend fun uploadImageToSupabaseStorage(imageUri: Uri, folder: String): String? {
+        if (!isNetworkAvailable()) {
+            setFailure("No internet connection. Check your network and try again.")
+            return null
+        }
+
+        return try {
+            val functionsBase = BuildConfig.SUPABASE_FUNCTIONS_BASE_URL.trim().trimEnd('/')
+            val anonKey = BuildConfig.SUPABASE_FUNCTIONS_ANON_KEY.trim()
+            if (functionsBase.isBlank() || anonKey.isBlank()) {
+                setFailure("Supabase configuration is missing in BuildConfig.")
+                return null
+            }
+
+            val projectBase = when {
+                functionsBase.endsWith("/functions/v1") -> functionsBase.removeSuffix("/functions/v1")
+                functionsBase.contains("/functions/") -> functionsBase.substringBefore("/functions/")
+                else -> functionsBase
+            }.trimEnd('/')
+
+            if (projectBase.isBlank()) {
+                setFailure("Invalid Supabase base URL configuration.")
+                return null
+            }
+
+            val mimeType = appContext.contentResolver.getType(imageUri) ?: "image/jpeg"
+            val extension = when (mimeType) {
+                "image/png" -> "png"
+                "image/webp" -> "webp"
+                else -> "jpg"
+            }
+
+            val bytes = appContext.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
+                ?: throw IllegalArgumentException("Could not read selected image.")
+
+            val cleanFolder = folder.trim().trim('/')
+            val userId = auth.currentUser?.uid?.trim().orEmpty()
+            val bucket = "user-images"
+            val safeFolder = if (cleanFolder.isBlank()) "misc" else cleanFolder
+            val timestamp = System.currentTimeMillis()
+            val fileName = "${safeFolder.replace("/", "_")}_${timestamp}.${extension}"
+            val objectPath = if (userId.isNotBlank()) {
+                "$userId/$safeFolder/$fileName"
+            } else {
+                "anonymous/$safeFolder/$fileName"
+            }
+
+            val uploadUrl = "$projectBase/storage/v1/object/$bucket/$objectPath"
+            val request = Request.Builder()
+                .url(uploadUrl)
+                .post(bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
+                .addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer $anonKey")
+                .addHeader("Content-Type", mimeType)
+                .addHeader("x-upsert", "true")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val body = response.body?.string().orEmpty()
+                    setFailure("Supabase storage upload failed (${response.code}): $body")
+                    return null
+                }
+            }
+
+            "$projectBase/storage/v1/object/public/$bucket/$objectPath"
+        } catch (e: Exception) {
+            setFailure(resolveErrorMessage(e))
+            null
+        }
+    }
+
+    fun updateProfilePictureUrlInFirestore(newProfileImageUrl: String) {
+        val userId = auth.currentUser?.uid
+        if (userId.isNullOrBlank()) {
+            setFailure("User is not signed in.")
+            return
+        }
+
+        launchWhenConnected(tag = "UserViewModel") {
+            firestore.collection("users")
+                .document(userId)
+                .update("profilePictureUrl", newProfileImageUrl)
+                .await()
+            sharedPreferences.updateProfileImageUrl(newProfileImageUrl)
+        }
+    }
+
+    fun updateHeaderPictureUrlInFirestore(newHeaderImageUrl: String) {
+        val userId = auth.currentUser?.uid
+        if (userId.isNullOrBlank()) {
+            setFailure("User is not signed in.")
+            return
+        }
+
+        launchWhenConnected(tag = "UserViewModel") {
+            firestore.collection("users")
+                .document(userId)
+                .update("headerPictureUrl", newHeaderImageUrl)
+                .await()
+            sharedPreferences.updateHeaderImageUrl(newHeaderImageUrl)
+        }
     }
 
     fun markEventOngoing(eventId: String) {
@@ -580,8 +717,9 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
             try {
                 val userId = auth.currentUser?.uid
                 if (userId.isNullOrBlank()) {
-                    _boughtTickets.value = emptyList()
-                    _ticketErrorMessage.value = "No signed-in user found."
+                    val cachedTickets = sharedPreferences.getBoughtTickets().orEmpty()
+                    _boughtTickets.value = cachedTickets.sortedByDescending { parseTicketSortKey(it) }
+                    _ticketErrorMessage.value = if (cachedTickets.isEmpty()) "No signed-in user found." else null
                     return@launch
                 }
                 Log.d("UserViewModel", "Fetching tickets for user ID: $userId")
@@ -593,14 +731,32 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
                 if (user != null) {
                     Log.d("UserViewModel", "Successfully fetched tickets: ${user.boughtTickets}")
                     _boughtTickets.value = user.boughtTickets.sortedByDescending { parseTicketSortKey(it) }
+                    val userInfo = sharedPreferences.getUserInfo()
+                    sharedPreferences.saveUserInfo(
+                        email = userInfo["USER_EMAIL"].orEmpty(),
+                        userName = userInfo["USERNAME"].orEmpty(),
+                        fcmToken = userInfo["FCM_TOKEN"],
+                        profilePictureUrl = userInfo["PROFILE_PICTURE_URL"],
+                        headerPictureUrl = userInfo["HEADER_PICTURE_URL"],
+                        role = userInfo["ROLE"].orEmpty(),
+                        boughtTickets = user.boughtTickets,
+                        filteredEvents = sharedPreferences.getFilteredEvents().orEmpty(),
+                        bookmarkEvents = sharedPreferences.getBookmarkEvents().orEmpty(),
+                        favoriteEvents = sharedPreferences.getFavoriteEvents().orEmpty()
+                    )
                 } else {
                     Log.d("UserViewModel", "No user data found in Firestore.")
-                    _boughtTickets.value = emptyList()
+                    _boughtTickets.value = sharedPreferences.getBoughtTickets().orEmpty()
                 }
             } catch (e: Exception) {
                 Log.e("UserViewModel", "Error fetching tickets from Firestore", e)
-                _boughtTickets.value = emptyList()
-                _ticketErrorMessage.value = e.localizedMessage ?: "Failed to fetch tickets."
+                val cachedTickets = sharedPreferences.getBoughtTickets().orEmpty()
+                _boughtTickets.value = cachedTickets.sortedByDescending { parseTicketSortKey(it) }
+                _ticketErrorMessage.value = if (cachedTickets.isEmpty()) {
+                    e.localizedMessage ?: "Failed to fetch tickets."
+                } else {
+                    null
+                }
             } finally {
                 _isLoading.value = false
                 _isRefreshing.value = false
@@ -937,4 +1093,3 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
 
 
 }
-

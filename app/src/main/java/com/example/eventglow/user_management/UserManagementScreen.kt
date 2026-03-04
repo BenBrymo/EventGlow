@@ -118,15 +118,12 @@ fun ManageUsersScreen(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
         ) {
-
-            Spacer(Modifier.height(12.dp))
-
             SearchUsersField(
                 value = searchQuery,
                 onValueChange = viewModel::onSearchQueryChangeUser
             )
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
             if (isLoading) {
                 Box(
@@ -205,34 +202,62 @@ private fun AddUserBottomSheet(
                 color = TextPrimary
             )
 
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                text = "Create a new account with role access",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary
+            )
+
             Spacer(Modifier.height(16.dp))
 
-            AddUserTextField(
-                value = username,
-                onValueChange = { username = it },
-                placeholder = "Username",
-                leadingIcon = Icons.Default.Person
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Background.copy(alpha = 0.35f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp)
+                ) {
+                    AddUserTextField(
+                        value = username,
+                        onValueChange = { username = it },
+                        placeholder = "Username",
+                        leadingIcon = Icons.Default.Person
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+
+                    AddUserTextField(
+                        value = email,
+                        onValueChange = { email = it },
+                        placeholder = "Email",
+                        leadingIcon = Icons.Default.Email
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+
+                    AddUserPasswordField(
+                        value = password,
+                        onValueChange = { password = it },
+                        visible = showPassword,
+                        onToggleVisibility = { showPassword = !showPassword }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+                text = "Role",
+                style = MaterialTheme.typography.labelLarge,
+                color = TextSecondary
             )
 
-            Spacer(Modifier.height(12.dp))
-
-            AddUserTextField(
-                value = email,
-                onValueChange = { email = it },
-                placeholder = "Email",
-                leadingIcon = Icons.Default.Email
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            AddUserPasswordField(
-                value = password,
-                onValueChange = { password = it },
-                visible = showPassword,
-                onToggleVisibility = { showPassword = !showPassword }
-            )
-
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(8.dp))
 
             RoleDropdown(
                 value = role,
@@ -375,7 +400,9 @@ private fun RoleDropdown(
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) },
-            modifier = Modifier.background(CardGray)
+            modifier = Modifier
+                .exposedDropdownSize(matchTextFieldWidth = true)
+                .background(CardGray)
         ) {
             roles.forEach {
                 DropdownMenuItem(

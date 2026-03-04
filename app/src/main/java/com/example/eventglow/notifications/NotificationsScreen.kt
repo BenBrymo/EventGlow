@@ -165,6 +165,23 @@ fun NotificationsScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                if (eventSearchQuery.isBlank()) {
+                    item {
+                        Text(
+                            text = "Type an event name or id to search.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else if (matchingEvents.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No events found for \"$eventSearchQuery\".",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 if (!selectedEventId.isNullOrBlank()) {
                     item {
                         Row(

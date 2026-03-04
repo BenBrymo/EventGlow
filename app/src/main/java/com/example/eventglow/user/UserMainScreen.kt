@@ -1,5 +1,7 @@
 package com.example.eventglow.user
 
+import PurchaseResultScreen
+import android.net.Uri
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AirplaneTicket
@@ -171,7 +173,10 @@ fun BottomNavGraph(
         }
 
         composable(RoutesUser.SETTINGS) {
-            UserSettingsScreen(navController = navController)
+            UserSettingsScreen(
+                navController = navController,
+                rootNavController = mainNavController
+            )
         }
 
         composable(RoutesUser.UPDATE_PROFILE) {
@@ -208,6 +213,45 @@ fun BottomNavGraph(
             UserEventsSectionScreen(
                 navController = navController,
                 sectionType = backStackEntry.arguments?.getString("sectionType").orEmpty()
+            )
+        }
+
+        composable(
+            route = "${RoutesUser.PURCHASE_RESULT}/{status}?reference={reference}&message={message}",
+            arguments = listOf(
+                navArgument("status") { type = NavType.StringType },
+                navArgument("reference") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("message") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val status = backStackEntry.arguments?.getString("status").orEmpty()
+            val reference = backStackEntry.arguments?.getString("reference")?.let { Uri.decode(it) }
+            val message = backStackEntry.arguments?.getString("message")?.let { Uri.decode(it) }
+            PurchaseResultScreen(
+                status = status,
+                reference = reference,
+                message = message,
+                onPrimaryAction = {
+                    if (status.equals("success", ignoreCase = true) && !reference.isNullOrBlank()) {
+                        navController.navigate("detailed_ticket_screen/$reference")
+                    } else {
+                        navController.popBackStack()
+                    }
+                },
+                onSecondaryAction = {
+                    navController.navigate(Routes.USER_MAIN_SCREEN) {
+                        popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
             )
         }
     }

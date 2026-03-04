@@ -106,7 +106,7 @@ class CreateAccountViewModel(application: Application) : BaseViewModel(applicati
                 "profilePictureUrl" to null,
                 "headerPictureUrl" to null,
                 "boughtTickets" to emptyList<BoughtTicket>(),
-                "bookmarks" to emptyList<Event>(),
+                "bookmarkEvents" to emptyList<Event>(),
                 "favouriteEvents" to emptyList<Event>()
             )
 
@@ -125,7 +125,7 @@ class CreateAccountViewModel(application: Application) : BaseViewModel(applicati
                 role = role,
                 boughtTickets = emptyList(),
                 filteredEvents = emptyList(),
-                bookmarks = emptyList(),
+                bookmarkEvents = emptyList(),
                 favoriteEvents = emptyList()
             )
 

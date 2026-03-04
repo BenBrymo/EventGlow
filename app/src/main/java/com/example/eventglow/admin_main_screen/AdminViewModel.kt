@@ -5,7 +5,6 @@ import android.net.Uri
 import android.util.Log
 import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.BaseViewModel
-import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
@@ -17,12 +16,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.MultipartBody
-import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -34,14 +30,7 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private val appContext = application.applicationContext
-
-    private val cloudinaryApi: CloudinaryApi by lazy {
-        Retrofit.Builder()
-            .baseUrl("https://api.cloudinary.com/")
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(CloudinaryApi::class.java)
-    }
+    private val httpClient = OkHttpClient()
 
     private val _adminHomeUiState = MutableStateFlow(AdminHomeUiState())
     val adminHomeUiState: StateFlow<AdminHomeUiState> = _adminHomeUiState.asStateFlow()
@@ -191,17 +180,28 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
         sharedPreferences.updateHeaderImageUrl(newHeaderImageUrl)
     }
 
-    suspend fun uploadImageToCloudinary(imageUri: Uri, folder: String): String? {
+    suspend fun uploadImageToSupabaseStorage(imageUri: Uri, folder: String): String? {
         if (!isNetworkAvailable()) {
             setFailure("No internet connection. Check your network and try again.")
             return null
         }
 
         return try {
-            val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
-            val uploadPreset = BuildConfig.CLOUDINARY_UPLOAD_PRESET.trim()
-            if (cloudName.isBlank() || uploadPreset.isBlank()) {
-                setFailure("Cloudinary credentials are missing in BuildConfig.")
+            val functionsBase = BuildConfig.SUPABASE_FUNCTIONS_BASE_URL.trim().trimEnd('/')
+            val anonKey = BuildConfig.SUPABASE_FUNCTIONS_ANON_KEY.trim()
+            if (functionsBase.isBlank() || anonKey.isBlank()) {
+                setFailure("Supabase configuration is missing in BuildConfig.")
+                return null
+            }
+
+            val projectBase = when {
+                functionsBase.endsWith("/functions/v1") -> functionsBase.removeSuffix("/functions/v1")
+                functionsBase.contains("/functions/") -> functionsBase.substringBefore("/functions/")
+                else -> functionsBase
+            }.trimEnd('/')
+
+            if (projectBase.isBlank()) {
+                setFailure("Invalid Supabase base URL configuration.")
                 return null
             }
 
@@ -212,50 +212,40 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                 else -> "jpg"
             }
 
-            val input = appContext.contentResolver.openInputStream(imageUri)
+            val bytes = appContext.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
                 ?: throw IllegalArgumentException("Could not read selected image.")
 
             val cleanFolder = folder.trim().trim('/')
-            val folderToken = cleanFolder.replace("/", "_")
+            val userId = auth.currentUser?.uid?.trim().orEmpty()
+            val bucket = "admin-images"
+            val safeFolder = if (cleanFolder.isBlank()) "misc" else cleanFolder
             val timestamp = System.currentTimeMillis()
-            val publicIdValue = "${folderToken}_$timestamp"
-            val tempFile = File(appContext.cacheDir, "$publicIdValue.$extension")
-            input.use { source ->
-                tempFile.outputStream().use { target ->
-                    source.copyTo(target)
+            val fileName = "${safeFolder.replace("/", "_")}_${timestamp}.${extension}"
+            val objectPath = if (userId.isNotBlank()) {
+                "$userId/$safeFolder/$fileName"
+            } else {
+                "anonymous/$safeFolder/$fileName"
+            }
+
+            val uploadUrl = "$projectBase/storage/v1/object/$bucket/$objectPath"
+            val request = Request.Builder()
+                .url(uploadUrl)
+                .post(bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
+                .addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer $anonKey")
+                .addHeader("Content-Type", mimeType)
+                .addHeader("x-upsert", "true")
+                .build()
+
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val body = response.body?.string().orEmpty()
+                    setFailure("Supabase storage upload failed (${response.code}): $body")
+                    return null
                 }
             }
 
-            val fileRequestBody = tempFile.asRequestBody(mimeType.toMediaTypeOrNull())
-            val filePart = MultipartBody.Part.createFormData(
-                name = "file",
-                filename = tempFile.name,
-                body = fileRequestBody
-            )
-
-            val uploadPresetBody = uploadPreset.toRequestBody("text/plain".toMediaTypeOrNull())
-            val folderBody = cleanFolder.toRequestBody("text/plain".toMediaTypeOrNull())
-            val assetFolderBody = cleanFolder.toRequestBody("text/plain".toMediaTypeOrNull())
-            val publicIdBody = publicIdValue.toRequestBody("text/plain".toMediaTypeOrNull())
-
-            val response = cloudinaryApi.uploadImage(
-                cloudName = cloudName,
-                file = filePart,
-                uploadPreset = uploadPresetBody,
-                folder = folderBody,
-                assetFolder = assetFolderBody,
-                publicId = publicIdBody
-            )
-
-            tempFile.delete()
-
-            val secureUrl = response.secureUrl
-            if (secureUrl.isNullOrBlank()) {
-                setFailure("Cloudinary upload failed.")
-                null
-            } else {
-                secureUrl
-            }
+            "$projectBase/storage/v1/object/public/$bucket/$objectPath"
         } catch (e: Exception) {
             setFailure(resolveErrorMessage(e))
             null

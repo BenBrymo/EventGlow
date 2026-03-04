@@ -35,6 +35,7 @@ import com.example.eventglow.ui.theme.TextSecondary
 @Composable
 fun AdminSettingsScreen(
     navController: NavController,
+    rootNavController: NavController = navController,
     mainActivityViewModel: MainActivityViewModel = viewModel(),
     notificationSettingsViewModel: NotificationSettingsViewModel = viewModel()
 ) {
@@ -67,7 +68,7 @@ fun AdminSettingsScreen(
             onLogout = {
                 mainActivityViewModel.signOut(
                     onSuccess = {
-                        navController.navigateAndClearTo(Routes.LOGIN_SCREEN)
+                        rootNavController.navigateAndClearTo(Routes.LOGIN_SCREEN)
                     },
                     onError = { error ->
                         Log.d("AdminSettingsScreen", "Logout failed: ${error.message}")
