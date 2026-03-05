@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.lifecycle.viewModelScope
 import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.BaseViewModel
 import com.example.eventglow.common.cloudinary.CloudinaryApi
@@ -18,6 +19,7 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -25,11 +27,16 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.File
+import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.*
 
 
 class EventsManagementViewModel(application: Application) : BaseViewModel(application) {
+    companion object {
+        private const val AUTO_ARCHIVE_ENDED_EVENTS = true
+        private const val ARCHIVE_AFTER_DAYS = 30L
+    }
 
     private val _events = MutableStateFlow<List<Event>>(emptyList())
     val events: StateFlow<List<Event>> = _events.asStateFlow()
@@ -263,10 +270,13 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
     ) {
         val draftedList = mutableListOf<Event>()
         val nonDraftedList = mutableListOf<Event>()
+        val archiveThresholdMs = ARCHIVE_AFTER_DAYS * 24L * 60L * 60L * 1000L
+        val nowMs = System.currentTimeMillis()
 
         for (document in result) {
             val data = document.data
             Log.d("FirestoreData", "Document ID: ${document.id}, Data: $data")
+            val isArchived = data["isArchived"] as? Boolean ?: false
 
             val event = Event(
                 id = document.id,
@@ -288,6 +298,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
                     )
                 } ?: listOf(),
                 imageUri = data["imageUri"] as? String ?: "",
+                imagePublicId = data["imagePublicId"] as? String ?: "",
                 isDraft = data["isDraft"] as? Boolean ?: false,
                 eventOrganizer = data["eventOrganizer"] as? String ?: "",
                 eventDescription = data["eventDescription"] as? String ?: "",
@@ -296,8 +307,12 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
                 createdAtMs = (data["createdAtMs"] as? Number)?.toLong() ?: 0L,
             )
 
+            if (isArchived || event.eventStatus.equals("archived", ignoreCase = true)) {
+                continue
+            }
+
             val computedStatus = computeEventStatus(event)
-            val updatedEvent = if (computedStatus != event.eventStatus) {
+            val statusAlignedEvent = if (computedStatus != event.eventStatus) {
                 if (canWriteStatus) {
                     updateEventStatus(event.id, computedStatus)
                 }
@@ -306,6 +321,24 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
                 event
             }
 
+            if (AUTO_ARCHIVE_ENDED_EVENTS && statusAlignedEvent.eventStatus.equals("ended", ignoreCase = true)) {
+                val endDate = parseDateFlexible(
+                    statusAlignedEvent.endDate.ifBlank { statusAlignedEvent.startDate }
+                )
+                val endMs = endDate?.time ?: 0L
+                if (endMs > 0L && (nowMs - endMs) >= archiveThresholdMs) {
+                    if (canWriteStatus) {
+                        archiveEvent(statusAlignedEvent.id)
+                    }
+                    Log.d(
+                        "AutoArchive",
+                        "Archived ended event id=${statusAlignedEvent.id}, name=${statusAlignedEvent.eventName}"
+                    )
+                    continue
+                }
+            }
+
+            val updatedEvent = statusAlignedEvent
             if (updatedEvent.isDraft) draftedList.add(updatedEvent) else nonDraftedList.add(updatedEvent)
         }
 
@@ -443,6 +476,20 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
 
     fun markEventEnded(eventId: String) {
         updateEventStatus(eventId, "ended")
+    }
+
+    private fun archiveEvent(eventId: String) {
+        db.collection("events").document(eventId)
+            .update(
+                mapOf(
+                    "eventStatus" to "archived",
+                    "isArchived" to true,
+                    "archivedAtMs" to System.currentTimeMillis()
+                )
+            )
+            .addOnFailureListener { e ->
+                Log.d("AutoArchive", "Failed to archive event $eventId", e)
+            }
     }
 
 
@@ -613,6 +660,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
             onFailure(IllegalArgumentException("Please upload the event image to Cloudinary first."))
             return
         }
+        val finalImagePublicId = extractCloudinaryPublicId(finalImageUrl).orEmpty()
 
         val createdAtMs = System.currentTimeMillis()
         val eventData = hashMapOf(
@@ -637,6 +685,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
                 )
             }, //create a list containing a map of ticketType objects
             "imageUri" to finalImageUrl,
+            "imagePublicId" to finalImagePublicId,
             "isDraft" to isDraft,
             "eventOrganizer" to eventOrganizer,
             "eventDescription" to eventDescription,
@@ -666,6 +715,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
                         eventCategory = eventCategory,
                         ticketTypes = ticketTypes,
                         imageUri = finalImageUrl,
+                        imagePublicId = finalImagePublicId,
                         isDraft = isDraft,
                         eventOrganizer = eventOrganizer,
                         eventDescription = eventDescription,
@@ -805,6 +855,62 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
             .take(40)
     }
 
+    private fun extractCloudinaryPublicId(imageUrl: String?): String? {
+        val url = imageUrl?.trim().orEmpty()
+        if (url.isBlank()) return null
+        val marker = "/image/upload/"
+        val markerIndex = url.indexOf(marker)
+        if (markerIndex == -1) return null
+
+        var path = url.substring(markerIndex + marker.length)
+        val queryIndex = path.indexOf('?')
+        if (queryIndex >= 0) path = path.substring(0, queryIndex)
+
+        if (path.startsWith("v") && path.length > 2 && path[1].isDigit()) {
+            val slash = path.indexOf('/')
+            if (slash > 0) path = path.substring(slash + 1)
+        }
+
+        return path.substringBeforeLast('.').takeIf { it.isNotBlank() }
+    }
+
+    private fun sha1Hex(value: String): String {
+        val digest = MessageDigest.getInstance("SHA-1").digest(value.toByteArray())
+        return digest.joinToString("") { byte -> "%02x".format(byte) }
+    }
+
+    private suspend fun deleteImageFromCloudinary(publicId: String): Result<Unit> {
+        return try {
+            val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
+            val apiKey = BuildConfig.CLOUDINARY_API_KEY.trim()
+            val apiSecret = BuildConfig.CLOUDINARY_API_SECRET.trim()
+            if (cloudName.isBlank() || apiKey.isBlank() || apiSecret.isBlank()) {
+                return Result.failure(IllegalStateException("Cloudinary API credentials missing for image delete."))
+            }
+
+            val timestamp = System.currentTimeMillis() / 1000L
+            val signaturePayload = "public_id=$publicId&timestamp=$timestamp$apiSecret"
+            val signature = sha1Hex(signaturePayload)
+
+            val response = cloudinaryApi.destroyImage(
+                cloudName = cloudName,
+                publicId = publicId,
+                timestamp = timestamp,
+                apiKey = apiKey,
+                signature = signature
+            )
+
+            val result = response.result.orEmpty().lowercase(Locale.getDefault())
+            if (result == "ok" || result == "not found") {
+                Result.success(Unit)
+            } else {
+                Result.failure(IllegalStateException("Cloudinary destroy returned: ${response.result}"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     fun addEvent(newEvent: Event) {
         if (newEvent.isDraft) {
             _draftedEvents.value = listOf(newEvent) + _draftedEvents.value
@@ -817,18 +923,24 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
     }
 
     fun deleteEvent(event: Event, onFailure: (String) -> Unit) {
-
-        //delete event from database collection
-        db.collection("events").document(event.id).delete()
-            .addOnSuccessListener {
-                //remove event from local list
-                _events.value -= event
+        viewModelScope.launch {
+            val publicId = event.imagePublicId.ifBlank { extractCloudinaryPublicId(event.imageUri) ?: "" }
+            var cleanupWarning: String? = null
+            if (publicId.isNotBlank()) {
+                deleteImageFromCloudinary(publicId)
+                    .onFailure { cleanupWarning = it.localizedMessage ?: "Cloudinary image cleanup failed." }
             }
-            .addOnFailureListener { exception ->
-                //set callback with error message
+
+            try {
+                db.collection("events").document(event.id).delete().await()
+                _events.value = _events.value.filterNot { it.id == event.id }
+                _draftedEvents.value = _draftedEvents.value.filterNot { it.id == event.id }
+                cleanupWarning?.let { warning -> onFailure("Event deleted, but image cleanup failed: $warning") }
+            } catch (exception: Exception) {
                 onFailure(getErrorMessage(exception))
                 Log.d("Could not delete document", "$exception")
             }
+        }
     }
 
 }

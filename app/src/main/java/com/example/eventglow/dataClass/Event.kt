@@ -16,6 +16,7 @@ data class Event(
     val eventCategory: String = "",
     val ticketTypes: List<TicketType> = emptyList(),
     val imageUri: String? = null,
+    val imagePublicId: String = "",
     val isDraft: Boolean = false,
     val isImportant: Boolean = false,
     val eventOrganizer: String = "",
@@ -24,4 +25,3 @@ data class Event(
     val durationMinutes: Int = 0,
     val createdAtMs: Long = 0L
 )
-

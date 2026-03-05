@@ -20,6 +20,10 @@ val supabaseFunctionsPaystackInitPath =
     (project.findProperty("SUPABASE_FUNCTIONS_PAYSTACK_INIT_PATH") as? String)?.trim().orEmpty()
 val supabaseFunctionsPaystackVerifyPath =
     (project.findProperty("SUPABASE_FUNCTIONS_PAYSTACK_VERIFY_PATH") as? String)?.trim().orEmpty()
+val cloudinaryApiKey =
+    (project.findProperty("CLOUDINARY_API_KEY") as? String)?.trim().orEmpty()
+val cloudinaryApiSecret =
+    (project.findProperty("CLOUDINARY_API_SECRET") as? String)?.trim().orEmpty()
 
 android {
     namespace = "com.example.eventglow"
@@ -33,6 +37,8 @@ android {
         versionName = "1.0"
         buildConfigField("String", "CLOUDINARY_CLOUD_NAME", "\"djakhwvat\"")
         buildConfigField("String", "CLOUDINARY_UPLOAD_PRESET", "\"eventGlowPreset\"")
+        buildConfigField("String", "CLOUDINARY_API_KEY", cloudinaryApiKey.toBuildConfigString())
+        buildConfigField("String", "CLOUDINARY_API_SECRET", cloudinaryApiSecret.toBuildConfigString())
         buildConfigField("String", "SUPABASE_FUNCTIONS_BASE_URL", supabaseFunctionsBaseUrl.toBuildConfigString())
         buildConfigField("String", "SUPABASE_FUNCTIONS_ANON_KEY", supabaseFunctionsAnonKey.toBuildConfigString())
         buildConfigField("String", "SUPABASE_FUNCTIONS_PUSH_PATH", supabaseFunctionsPushPath.toBuildConfigString())

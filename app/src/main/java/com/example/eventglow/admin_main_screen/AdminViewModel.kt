@@ -75,6 +75,7 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                     endDate = data["endDate"] as? String ?: "",
                     isMultiDayEvent = data["isMultiDayEvent"] as? Boolean ?: false,
                     eventTime = data["eventTime"] as? String ?: "",
+                    durationMinutes = (data["durationMinutes"] as? Number)?.toInt() ?: 0,
                     eventVenue = data["eventVenue"] as? String ?: "",
                     eventStatus = data["eventStatus"] as? String ?: "",
                     eventCategory = data["eventCategory"] as? String ?: "",
@@ -102,6 +103,12 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
             val boughtTicketsCount = boughtTickets.size
 
             val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
+                val timeFormats = listOf(
+                    SimpleDateFormat("h:mm a", Locale.getDefault()),
+                    SimpleDateFormat("hh:mm a", Locale.getDefault()),
+                    SimpleDateFormat("H:mm", Locale.getDefault()),
+                    SimpleDateFormat("HH:mm", Locale.getDefault())
+                ).onEach { it.isLenient = false }
 
             fun parseDateOrNull(value: String): Date? = try {
                 dateFormat.parse(value)
@@ -109,6 +116,42 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
                 null
             }
 
+                fun parseTimeToHourMinute(value: String): Pair<Int, Int>? {
+                    val trimmed = value.trim()
+                    if (trimmed.isBlank()) return null
+                    for (formatter in timeFormats) {
+                        try {
+                            val parsed = formatter.parse(trimmed) ?: continue
+                            val calendar = Calendar.getInstance().apply { time = parsed }
+                            return calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
+                        } catch (_: Exception) {
+                            // Try next parser.
+                        }
+                    }
+                    return null
+                }
+
+                fun mergeDateAndTime(date: Date, hour: Int, minute: Int): Date {
+                    return Calendar.getInstance().apply {
+                        time = date
+                        set(Calendar.HOUR_OF_DAY, hour)
+                        set(Calendar.MINUTE, minute)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.time
+                }
+
+                fun normalizeDate(date: Date): Date {
+                    return Calendar.getInstance().apply {
+                        time = date
+                        set(Calendar.HOUR_OF_DAY, 0)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }.time
+                }
+
+                val now = Date()
             val todayCal = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, 0)
                 set(Calendar.MINUTE, 0)
@@ -117,49 +160,46 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
             }
             val today = todayCal.time
 
-            val tomorrowCal = (todayCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
-            val tomorrow = tomorrowCal.time
+                val endedEvents = mutableListOf<Event>()
+                val liveEvents = mutableListOf<Event>()
+                val todayEvents = mutableListOf<Event>()
+                val upcomingEvents = mutableListOf<Event>()
 
-            val nextSixDaysEndCal = (todayCal.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 6) }
-            val nextSixDaysEnd = nextSixDaysEndCal.time
+                events.forEach { event ->
+                    val startDateOnly = parseDateOrNull(event.startDate) ?: return@forEach
+                    val startTime = parseTimeToHourMinute(event.eventTime)
+                    val startDateTime = mergeDateAndTime(
+                        date = startDateOnly,
+                        hour = startTime?.first ?: 0,
+                        minute = startTime?.second ?: 0
+                    )
 
-                val todayEvents = events
-                    .filter { event ->
-                        val start = parseDateOrNull(event.startDate) ?: return@filter false
-                        val end = parseDateOrNull(event.endDate) ?: start
-                        !today.before(start) && !today.after(end)
+                    val endDateOnly = parseDateOrNull(
+                        if (event.isMultiDayEvent) event.endDate.ifBlank { event.startDate } else event.startDate
+                    ) ?: startDateOnly
+                    val endDateTime = if (event.isMultiDayEvent) {
+                        mergeDateAndTime(endDateOnly, 23, 59)
+                    } else if (event.durationMinutes > 0) {
+                        Date(startDateTime.time + event.durationMinutes * 60_000L)
+                    } else {
+                        mergeDateAndTime(endDateOnly, 23, 59)
                     }
-                    .sortedByDescending { it.createdAtMs }
 
-                val liveEvents = todayEvents
-
-            val upcomingEvents = events
-                .filter { event ->
-                    val start = parseDateOrNull(event.startDate) ?: return@filter false
-                    val end = parseDateOrNull(event.endDate) ?: start
-                    // Event happens within [tomorrow, next 6 days]
-                    !end.before(tomorrow) && !start.after(nextSixDaysEnd)
+                    when {
+                        now.after(endDateTime) -> endedEvents.add(event)
+                        !now.before(startDateTime) && !now.after(endDateTime) -> liveEvents.add(event)
+                        normalizeDate(startDateOnly) == today && startDateTime.after(now) -> todayEvents.add(event)
+                        normalizeDate(startDateOnly).after(today) -> upcomingEvents.add(event)
                 }
-                .filterNot { event -> todayEvents.any { it.id == event.id } }
-                .sortedByDescending { it.createdAtMs }
-                .take(6)
-
-                val endedEvents = events
-                    .filter { event ->
-                        val end = parseDateOrNull(event.endDate)
-                            ?: parseDateOrNull(event.startDate)
-                            ?: return@filter false
-                        end.before(today)
-                    }
-                    .sortedByDescending { it.createdAtMs }
+                }
 
                 _adminHomeUiState.value = AdminHomeUiState(
                     totalEvents = events.size,
                     totalTickets = boughtTicketsCount,
-                    upcomingEvents = upcomingEvents,
-                    todayEvents = todayEvents,
-                    liveEvents = liveEvents,
-                    endedEvents = endedEvents
+                    upcomingEvents = upcomingEvents.distinctBy { it.id }.sortedByDescending { it.createdAtMs }.take(6),
+                    todayEvents = todayEvents.distinctBy { it.id }.sortedByDescending { it.createdAtMs },
+                    liveEvents = liveEvents.distinctBy { it.id }.sortedByDescending { it.createdAtMs },
+                    endedEvents = endedEvents.distinctBy { it.id }.sortedByDescending { it.createdAtMs }
                 )
                 setSuccess()
             } finally {
