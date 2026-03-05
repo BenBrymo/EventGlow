@@ -5,6 +5,8 @@ import android.net.Uri
 import android.util.Log
 import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.BaseViewModel
+import com.example.eventglow.common.EventDateTimeUtils
+import com.example.eventglow.common.EventTimelineBucket
 import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
@@ -19,10 +21,6 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 class AdminViewModel(application: Application) : BaseViewModel(application) {
 
@@ -102,94 +100,18 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
             val boughtTickets = boughtTicketsResult.toObjects(BoughtTicket::class.java)
             val boughtTicketsCount = boughtTickets.size
 
-            val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).apply { isLenient = false }
-                val timeFormats = listOf(
-                    SimpleDateFormat("h:mm a", Locale.getDefault()),
-                    SimpleDateFormat("hh:mm a", Locale.getDefault()),
-                    SimpleDateFormat("H:mm", Locale.getDefault()),
-                    SimpleDateFormat("HH:mm", Locale.getDefault())
-                ).onEach { it.isLenient = false }
-
-            fun parseDateOrNull(value: String): Date? = try {
-                dateFormat.parse(value)
-            } catch (_: Exception) {
-                null
-            }
-
-                fun parseTimeToHourMinute(value: String): Pair<Int, Int>? {
-                    val trimmed = value.trim()
-                    if (trimmed.isBlank()) return null
-                    for (formatter in timeFormats) {
-                        try {
-                            val parsed = formatter.parse(trimmed) ?: continue
-                            val calendar = Calendar.getInstance().apply { time = parsed }
-                            return calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
-                        } catch (_: Exception) {
-                            // Try next parser.
-                        }
-                    }
-                    return null
-                }
-
-                fun mergeDateAndTime(date: Date, hour: Int, minute: Int): Date {
-                    return Calendar.getInstance().apply {
-                        time = date
-                        set(Calendar.HOUR_OF_DAY, hour)
-                        set(Calendar.MINUTE, minute)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }.time
-                }
-
-                fun normalizeDate(date: Date): Date {
-                    return Calendar.getInstance().apply {
-                        time = date
-                        set(Calendar.HOUR_OF_DAY, 0)
-                        set(Calendar.MINUTE, 0)
-                        set(Calendar.SECOND, 0)
-                        set(Calendar.MILLISECOND, 0)
-                    }.time
-                }
-
-                val now = Date()
-            val todayCal = Calendar.getInstance().apply {
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }
-            val today = todayCal.time
-
                 val endedEvents = mutableListOf<Event>()
                 val liveEvents = mutableListOf<Event>()
                 val todayEvents = mutableListOf<Event>()
                 val upcomingEvents = mutableListOf<Event>()
 
                 events.forEach { event ->
-                    val startDateOnly = parseDateOrNull(event.startDate) ?: return@forEach
-                    val startTime = parseTimeToHourMinute(event.eventTime)
-                    val startDateTime = mergeDateAndTime(
-                        date = startDateOnly,
-                        hour = startTime?.first ?: 0,
-                        minute = startTime?.second ?: 0
-                    )
-
-                    val endDateOnly = parseDateOrNull(
-                        if (event.isMultiDayEvent) event.endDate.ifBlank { event.startDate } else event.startDate
-                    ) ?: startDateOnly
-                    val endDateTime = if (event.isMultiDayEvent) {
-                        mergeDateAndTime(endDateOnly, 23, 59)
-                    } else if (event.durationMinutes > 0) {
-                        Date(startDateTime.time + event.durationMinutes * 60_000L)
-                    } else {
-                        mergeDateAndTime(endDateOnly, 23, 59)
-                    }
-
-                    when {
-                        now.after(endDateTime) -> endedEvents.add(event)
-                        !now.before(startDateTime) && !now.after(endDateTime) -> liveEvents.add(event)
-                        normalizeDate(startDateOnly) == today && startDateTime.after(now) -> todayEvents.add(event)
-                        normalizeDate(startDateOnly).after(today) -> upcomingEvents.add(event)
+                    when (EventDateTimeUtils.classifyEventBucket(event)) {
+                        EventTimelineBucket.ENDED -> endedEvents.add(event)
+                        EventTimelineBucket.LIVE -> liveEvents.add(event)
+                        EventTimelineBucket.TODAY -> todayEvents.add(event)
+                        EventTimelineBucket.UPCOMING -> upcomingEvents.add(event)
+                        EventTimelineBucket.UNKNOWN -> Unit
                 }
                 }
 
@@ -246,6 +168,11 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
             }
 
             val mimeType = appContext.contentResolver.getType(imageUri) ?: "image/jpeg"
+            val allowedMimeTypes = setOf("image/jpeg", "image/png", "image/webp")
+            if (mimeType !in allowedMimeTypes) {
+                setFailure("Unsupported image type. Use JPG, PNG, or WEBP.")
+                return null
+            }
             val extension = when (mimeType) {
                 "image/png" -> "png"
                 "image/webp" -> "webp"
@@ -254,6 +181,11 @@ class AdminViewModel(application: Application) : BaseViewModel(application) {
 
             val bytes = appContext.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
                 ?: throw IllegalArgumentException("Could not read selected image.")
+            val maxBytes = 5 * 1024 * 1024
+            if (bytes.size > maxBytes) {
+                setFailure("Image is too large. Maximum size is 5MB.")
+                return null
+            }
 
             val cleanFolder = folder.trim().trim('/')
             val userId = auth.currentUser?.uid?.trim().orEmpty()

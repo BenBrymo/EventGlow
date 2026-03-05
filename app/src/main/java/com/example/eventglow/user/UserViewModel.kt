@@ -419,6 +419,11 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
             }
 
             val mimeType = appContext.contentResolver.getType(imageUri) ?: "image/jpeg"
+            val allowedMimeTypes = setOf("image/jpeg", "image/png", "image/webp")
+            if (mimeType !in allowedMimeTypes) {
+                setFailure("Unsupported image type. Use JPG, PNG, or WEBP.")
+                return null
+            }
             val extension = when (mimeType) {
                 "image/png" -> "png"
                 "image/webp" -> "webp"
@@ -427,6 +432,11 @@ class UserViewModel(application: Application) : BaseViewModel(application) {
 
             val bytes = appContext.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
                 ?: throw IllegalArgumentException("Could not read selected image.")
+            val maxBytes = 5 * 1024 * 1024
+            if (bytes.size > maxBytes) {
+                setFailure("Image is too large. Maximum size is 5MB.")
+                return null
+            }
 
             val cleanFolder = folder.trim().trim('/')
             val userId = auth.currentUser?.uid?.trim().orEmpty()

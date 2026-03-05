@@ -22,7 +22,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -36,44 +35,31 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.eventglow.common.SharedPreferencesViewModel
 import com.example.eventglow.common.formatDisplayDate
-import com.example.eventglow.dataClass.BoughtTicket
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.TicketType
-import com.example.eventglow.dataClass.Transaction
 import com.example.eventglow.dataClass.UserPreferences
 import com.example.eventglow.events_management.EventsManagementViewModel
 import com.example.eventglow.events_management.FetchEventsState
 import com.example.eventglow.navigation.Routes
 import com.example.eventglow.payment.AuthorizationResult
 import com.example.eventglow.payment.PayStackPaymentViewModel
-import com.example.eventglow.payment.VerificationResult
+import com.example.eventglow.payment.PurchaseFlowState
+import com.example.eventglow.payment.PurchaseOutcome
 import com.example.eventglow.ui.theme.Background
 import com.example.eventglow.ui.theme.BrandPrimary
 import com.example.eventglow.ui.theme.CardGray
 import com.example.eventglow.ui.theme.SurfaceLevel2
 import com.example.eventglow.ui.theme.TextPrimary
 import com.example.eventglow.ui.theme.TextSecondary
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
-import kotlin.math.roundToInt
 
 private val KikuuCard = Color(0xFFFFE9D2)
 private val KikuuCardDeep = Color(0xFFFFD9B0)
 private val KikuuAccent = Color(0xFFE67E22)
 private val KikuuText = Color(0xFF4A2E15)
 private val KikuuMuted = Color(0xFF7B5432)
-
-private enum class PurchaseFlowState {
-    IDLE,
-    AUTHORIZING,
-    AWAITING_VERIFICATION,
-    VERIFYING,
-    COMMITTING,
-    FAILED
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,18 +79,14 @@ fun DetailedEventScreen(
     Log.d("DetailedEventScreen", "Event fetched: $event")
 
     val authorizationResult by paymentViewModel.authorizationResult.collectAsState()
-    val verificationResult by paymentViewModel.verificationResult.collectAsState()
     val paymentErrorMessage by paymentViewModel.errorMessage.collectAsState()
-    val verifiedTransaction by paymentViewModel.latestVerifiedTransaction.collectAsState()
     val boughtTickets by userViewModel.boughtTickets.collectAsState()
+    val purchaseFlowState by paymentViewModel.purchaseFlowState.collectAsState()
+    val purchaseOutcome by paymentViewModel.purchaseOutcome.collectAsState()
 
-    var isLoading by remember { mutableStateOf(false) }
     var isCommittingPurchase by remember { mutableStateOf(false) }
-    var purchaseFlowState by remember { mutableStateOf(PurchaseFlowState.IDLE) }
-    var pendingTransactionReference by rememberSaveable { mutableStateOf("") }
 
     Log.d("AuthorizationResult", "Authorization result: $authorizationResult")
-    Log.d("VerificationResult", "Verification result: $verificationResult")
 
     // State to hold the chosen ticket type
     var selectedTicketType by remember { mutableStateOf<TicketType?>(null) }
@@ -181,25 +163,11 @@ fun DetailedEventScreen(
     }
     Log.d("DetailedEventScreen", "Has user bought ticket for this event? $hasBoughtTicket")
 
-    if (isLoading) {
-        Surface(modifier = Modifier.fillMaxSize(), color = Color.Transparent) {
-            Column(
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .alpha(0.45f),
-            ) {
-                CircularProgressIndicator() // Display loading indicator
-            }
-        }
-    }
-
-
     LaunchedEffect(authorizationResult) {
         scope.launch {
             when (authorizationResult) {
                 is AuthorizationResult.Error -> {
-                    purchaseFlowState = PurchaseFlowState.FAILED
+                    paymentViewModel.markFailed()
                     Log.d(
                         "AuthorizationResult",
                         "Payment authorization error: ${(authorizationResult as AuthorizationResult.Error).message}"
@@ -212,12 +180,7 @@ fun DetailedEventScreen(
                 }
 
                 AuthorizationResult.Idle -> {
-                    if (
-                        purchaseFlowState != PurchaseFlowState.COMMITTING &&
-                        purchaseFlowState != PurchaseFlowState.AWAITING_VERIFICATION
-                    ) {
-                        purchaseFlowState = PurchaseFlowState.IDLE
-                    }
+                    // state handled centrally in viewmodel
                 }
 
                 is AuthorizationResult.Success -> {
@@ -225,13 +188,14 @@ fun DetailedEventScreen(
                         "AuthorizationResult",
                         "Payment authorized, opening URL: ${(authorizationResult as AuthorizationResult.Success).authorizationUrl}"
                     )
-                    pendingTransactionReference = paymentViewModel.transactionReference.orEmpty()
+                    paymentViewModel.markAwaitingVerification(
+                        paymentViewModel.transactionReference.orEmpty()
+                    )
                     val intent = Intent(Intent.ACTION_VIEW).apply {
                         data =
                             android.net.Uri.parse((authorizationResult as AuthorizationResult.Success).authorizationUrl)
                     }
                     context.startActivity(intent)
-                    purchaseFlowState = PurchaseFlowState.AWAITING_VERIFICATION
                 }
             }
         }
@@ -239,108 +203,33 @@ fun DetailedEventScreen(
 
     LaunchedEffect(paymentErrorMessage) {
         paymentErrorMessage?.let { error ->
-            purchaseFlowState = PurchaseFlowState.FAILED
+            paymentViewModel.markFailed()
             snackbarHostState.showSnackbar(message = error)
             paymentViewModel.clearError()
         }
     }
 
-    LaunchedEffect(verificationResult) {
-        scope.launch {
-            when (verificationResult) {
-                is VerificationResult.Error -> {
-                    isLoading = false
-                    purchaseFlowState = PurchaseFlowState.FAILED
-                    Log.d(
-                        "VerificationResult",
-                        "Payment verification error: ${(verificationResult as VerificationResult.Error).message}"
-                    )
-                    navigateToPurchaseResult(
-                        status = "failure",
-                        reference = pendingTransactionReference.ifBlank { null },
-                        message = (verificationResult as VerificationResult.Error).message
-                    )
-                }
-
-                is VerificationResult.Idle -> {
-                    if (
-                        purchaseFlowState == PurchaseFlowState.VERIFYING ||
-                        purchaseFlowState == PurchaseFlowState.FAILED
-                    ) {
-                        purchaseFlowState = PurchaseFlowState.IDLE
-                    }
-                }
-
-                is VerificationResult.Success -> {
-                    isLoading = false
-                    Log.d("VerificationResult", "Payment verified successfully, redirecting to Tickets Screen.")
-                    val verifiedReference = verifiedTransaction?.reference.orEmpty()
-                    val ticketReference = verifiedReference.ifBlank {
-                        paymentViewModel.transactionReference.orEmpty().ifBlank { pendingTransactionReference }
-                    }
-                    selectedTicketType?.let { ticketType ->
-                        val normalizedTransaction = verifiedTransaction?.copy(reference = ticketReference)
-                        if (normalizedTransaction == null || ticketReference.isBlank()) {
-                            navigateToPurchaseResult(
-                                status = "failure",
-                                message = "Missing verified transaction reference."
-                            )
-                            return@let
-                        }
-
-                        val boughtTicket = buildBoughtTicket(
-                            event = event,
-                            ticketType = ticketType,
-                            ticketReference = ticketReference,
-                            paymentTransaction = normalizedTransaction,
-                            isFreeTicket = false
-                        )
-                        scope.launch {
-                            val isStillAvailable = isTicketAvailable(event.id, ticketType)
-                            if (!isStillAvailable) {
-                                purchaseFlowState = PurchaseFlowState.FAILED
-                                navigateToPurchaseResult(
-                                    status = "failure",
-                                    reference = ticketReference,
-                                    message = "Ticket is sold out. Verification succeeded but purchase was not completed."
-                                )
-                                return@launch
-                            }
-
-                            purchaseFlowState = PurchaseFlowState.COMMITTING
-                            isCommittingPurchase = true
-                            val result = userViewModel.commitTicketPurchase(
-                                boughtTicket = boughtTicket,
-                                transaction = normalizedTransaction
-                            )
-                            isCommittingPurchase = false
-                            result.onSuccess {
-                                Log.d("DetailedEventScreen", "Processed bought ticket: $boughtTicket")
-                                pendingTransactionReference = ""
-                                purchaseFlowState = PurchaseFlowState.IDLE
-                                navigateToPurchaseResult(
-                                    status = "success",
-                                    reference = ticketReference,
-                                    message = "Your ticket purchase is complete."
-                                )
-                            }.onFailure { error ->
-                                purchaseFlowState = PurchaseFlowState.FAILED
-                                navigateToPurchaseResult(
-                                    status = "failure",
-                                    reference = ticketReference,
-                                    message = error.message ?: "Failed to complete purchase."
-                                )
-                            }
-                        }
-                    }
-                }
-
-                is VerificationResult.Loading -> {
-                    isLoading = true
-                    purchaseFlowState = PurchaseFlowState.VERIFYING
-                    Log.d("DetailedEventScreen", "Payment verification is loading.")
-                }
+    LaunchedEffect(purchaseOutcome) {
+        when (val outcome = purchaseOutcome) {
+            is PurchaseOutcome.Success -> {
+                navigateToPurchaseResult(
+                    status = "success",
+                    reference = outcome.reference,
+                    message = outcome.message
+                )
+                paymentViewModel.clearPurchaseOutcome()
             }
+
+            is PurchaseOutcome.Failure -> {
+                navigateToPurchaseResult(
+                    status = "failure",
+                    reference = outcome.reference,
+                    message = outcome.message
+                )
+                paymentViewModel.clearPurchaseOutcome()
+            }
+
+            PurchaseOutcome.Idle -> Unit
         }
     }
 
@@ -417,7 +306,7 @@ fun DetailedEventScreen(
 
                     val availableNow = isTicketAvailable(event.id, ticketType)
                     if (!availableNow) {
-                        purchaseFlowState = PurchaseFlowState.FAILED
+                        paymentViewModel.markFailed()
                         Log.d(
                             "DetailedEventScreen",
                             "Buy blocked: ticket unavailable. event=${event.id}, ticket=${ticketType.name}"
@@ -426,67 +315,31 @@ fun DetailedEventScreen(
                         return@launch
                     }
 
-                    if (ticketType.price <= 0.0) {
-                        val freeReference = "FREE-${UUID.randomUUID()}"
-                        val freeTicket = buildBoughtTicket(
-                            event = event,
-                            ticketType = ticketType,
-                            ticketReference = freeReference,
-                            paymentTransaction = null,
-                            isFreeTicket = true
-                        )
-                        val freeTransaction = buildFreeTransaction(
-                            ticketReference = freeReference,
-                            boughtTicket = freeTicket
-                        )
-                        purchaseFlowState = PurchaseFlowState.COMMITTING
+                    if (purchaseFlowState == PurchaseFlowState.AWAITING_VERIFICATION) {
                         isCommittingPurchase = true
-                        val result = userViewModel.commitTicketPurchase(
-                            boughtTicket = freeTicket,
-                            transaction = freeTransaction
+                        paymentViewModel.completePendingTicketPurchase(
+                            onCheckAvailability = { id, chosenTicket ->
+                                isTicketAvailable(id, chosenTicket)
+                            },
+                            onCommit = { boughtTicket, transaction ->
+                                userViewModel.commitTicketPurchase(boughtTicket, transaction)
+                            }
                         )
                         isCommittingPurchase = false
-                        result.onSuccess {
-                            purchaseFlowState = PurchaseFlowState.IDLE
-                            navigateToPurchaseResult(
-                                status = "success",
-                                reference = freeReference,
-                                message = "Free ticket issued successfully."
-                            )
-                        }.onFailure { error ->
-                            purchaseFlowState = PurchaseFlowState.FAILED
-                            navigateToPurchaseResult(
-                                status = "failure",
-                                reference = freeReference,
-                                message = error.message ?: "Failed to issue free ticket."
-                            )
-                        }
-                        return@launch
-                    }
-
-                    if (purchaseFlowState == PurchaseFlowState.AWAITING_VERIFICATION) {
-                        if (pendingTransactionReference.isNotBlank()) {
-                            paymentViewModel.transactionReference = pendingTransactionReference
-                        }
-                        purchaseFlowState = PurchaseFlowState.VERIFYING
-                        paymentViewModel.verifyTransaction()
                     } else if (purchaseFlowState == PurchaseFlowState.IDLE || purchaseFlowState == PurchaseFlowState.FAILED) {
-                        val safeEmail = email?.trim().orEmpty()
-                        if (safeEmail.isBlank()) {
-                            Log.d("DetailedEventScreen", "Buy blocked: missing user email.")
-                            Toast.makeText(
-                                context,
-                                "No account email available for payment.",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                            return@launch
-                        }
-                        purchaseFlowState = PurchaseFlowState.AUTHORIZING
-                        paymentViewModel.initiatePayment(
-                            email = safeEmail,
-                            amount = (ticketType.price * 100).roundToInt().toString()
+                        isCommittingPurchase = true
+                        paymentViewModel.startTicketPurchase(
+                            event = event,
+                            ticketType = ticketType,
+                            email = email?.trim().orEmpty(),
+                            onCheckAvailability = { id, chosenTicket ->
+                                isTicketAvailable(id, chosenTicket)
+                            },
+                            onCommit = { boughtTicket, transaction ->
+                                userViewModel.commitTicketPurchase(boughtTicket, transaction)
+                            }
                         )
-                        pendingTransactionReference = paymentViewModel.transactionReference.orEmpty()
+                        isCommittingPurchase = false
                     } else {
                         Log.d("DetailedEventScreen", "Buy ignored due to flow state=$purchaseFlowState")
                         snackbarHostState.showSnackbar("Please complete current payment step first.")
@@ -496,7 +349,7 @@ fun DetailedEventScreen(
         )
     }
 
-    if (isLoading || isCommittingPurchase) {
+    if (purchaseFlowState == PurchaseFlowState.VERIFYING || isCommittingPurchase) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1120,68 +973,6 @@ fun DetailedEventContent(
             }
         }
     }
-}
-
-private fun buildBoughtTicket(
-    event: Event,
-    ticketType: TicketType,
-    ticketReference: String,
-    paymentTransaction: Transaction?,
-    isFreeTicket: Boolean
-): BoughtTicket {
-    val authUser = FirebaseAuth.getInstance().currentUser
-    val qrData = "eventglow_ticket|$ticketReference|${event.id}|${authUser?.uid.orEmpty()}"
-    return BoughtTicket(
-        transactionReference = ticketReference,
-        paymentProvider = if (isFreeTicket) "free" else "paystack",
-        paymentStatus = if (isFreeTicket) "success" else (paymentTransaction?.status ?: ""),
-        paymentGatewayResponse = if (isFreeTicket) "Free ticket issued" else (paymentTransaction?.gatewayResponse
-            ?: ""),
-        paymentAmount = if (isFreeTicket) "0" else (paymentTransaction?.amount ?: ticketType.price.toString()),
-        paymentCurrency = if (isFreeTicket) "GHS" else (paymentTransaction?.currency ?: "GHS"),
-        paymentChannel = if (isFreeTicket) "free" else (paymentTransaction?.channel ?: ""),
-        paymentAuthorizationCode = paymentTransaction?.authorizationCode ?: "",
-        paymentCardType = paymentTransaction?.cardType ?: "",
-        paymentBank = paymentTransaction?.bank ?: "",
-        paymentCustomerEmail = paymentTransaction?.customerEmail ?: "",
-        paymentPaidAt = paymentTransaction?.paidAt ?: "",
-        paymentCreatedAt = paymentTransaction?.createdAt ?: "",
-        isFreeTicket = isFreeTicket,
-        eventOrganizer = event.eventOrganizer,
-        eventId = event.id,
-        eventName = event.eventName,
-        startDate = event.startDate,
-        eventStatus = event.eventStatus,
-        endDate = event.endDate,
-        imageUrl = event.imageUri,
-        ticketName = ticketType.name,
-        ticketPrice = ticketType.price.toString(),
-        qrCodeData = qrData,
-        isScanned = false,
-        scannedAt = "",
-        scannedByAdminId = "",
-        scannedByAdminName = ""
-    )
-}
-
-private fun buildFreeTransaction(
-    ticketReference: String,
-    boughtTicket: BoughtTicket
-): Transaction {
-    val authUser = FirebaseAuth.getInstance().currentUser
-    return Transaction(
-        id = ticketReference,
-        userId = authUser?.uid.orEmpty(),
-        status = "success",
-        reference = ticketReference,
-        amount = "0",
-        gatewayResponse = "Free ticket issued",
-        paidAt = boughtTicket.paymentPaidAt,
-        createdAt = boughtTicket.paymentCreatedAt,
-        channel = "free",
-        currency = "GHS",
-        customerEmail = boughtTicket.paymentCustomerEmail.ifBlank { authUser?.email.orEmpty() }
-    )
 }
 
 @Composable

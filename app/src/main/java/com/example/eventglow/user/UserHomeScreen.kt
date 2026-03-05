@@ -48,14 +48,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.example.eventglow.common.EventDateTimeUtils
+import com.example.eventglow.common.EventTimelineBucket
 import com.example.eventglow.common.formatDisplayDate
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.navigation.Routes
 import kotlinx.coroutines.delay
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun userHomeScreen(
@@ -520,54 +518,17 @@ private data class UserHomeSections(
 )
 
 private fun buildSections(events: List<Event>): UserHomeSections {
-    val now = Calendar.getInstance().time
-    val todayDate = normalizeDate(now)
-
-    val withDates = events.mapNotNull { event ->
-        val startDate = parseDate(event.startDate) ?: return@mapNotNull null
-        val endDate = parseDate(event.endDate).takeIf { event.isMultiDayEvent } ?: startDate
-        val startAt = combineDateAndTime(
-            date = startDate,
-            time = event.eventTime,
-            fallbackHour = 0,
-            fallbackMinute = 0
-        )
-        val endAt = if (event.durationMinutes > 0) {
-            Date(startAt.time + (event.durationMinutes * 60_000L))
-        } else {
-            combineDateAndTime(
-                date = endDate,
-                time = event.eventTime,
-                fallbackHour = 23,
-                fallbackMinute = 59
-            )
-        }
-        LiveWindowEvent(
-            event = event,
-            startDate = normalizeDate(startDate),
-            endDate = normalizeDate(endDate),
-            startAt = startAt,
-            endAt = endAt
-        )
-    }
-
     val live = mutableListOf<Event>()
     val today = mutableListOf<Event>()
     val upcoming = mutableListOf<Event>()
 
-    withDates.forEach { candidate ->
-        when {
-            !now.before(candidate.startAt) && !now.after(candidate.endAt) -> {
-                live.add(candidate.event)
-            }
-
-            candidate.startDate == todayDate && candidate.startAt.after(now) -> {
-                today.add(candidate.event)
-            }
-
-            candidate.startDate.after(todayDate) -> {
-                upcoming.add(candidate.event)
-            }
+    events.forEach { event ->
+        when (EventDateTimeUtils.classifyEventBucket(event)) {
+            EventTimelineBucket.LIVE -> live.add(event)
+            EventTimelineBucket.TODAY -> today.add(event)
+            EventTimelineBucket.UPCOMING -> upcoming.add(event)
+            EventTimelineBucket.ENDED,
+            EventTimelineBucket.UNKNOWN -> Unit
         }
     }
 
@@ -576,75 +537,6 @@ private fun buildSections(events: List<Event>): UserHomeSections {
         todayEvents = today,
         upcomingEvents = upcoming
     )
-}
-
-private fun parseDate(value: String): Date? {
-    return try {
-        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).parse(value)
-    } catch (_: Exception) {
-        null
-    }
-}
-
-private fun normalizeDate(date: Date): Date {
-    return Calendar.getInstance().apply {
-        time = date
-        set(Calendar.HOUR_OF_DAY, 0)
-        set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }.time
-}
-
-private data class LiveWindowEvent(
-    val event: Event,
-    val startDate: Date,
-    val endDate: Date,
-    val startAt: Date,
-    val endAt: Date
-)
-
-private fun combineDateAndTime(
-    date: Date,
-    time: String,
-    fallbackHour: Int,
-    fallbackMinute: Int
-): Date {
-    val calendar = Calendar.getInstance().apply {
-        this.time = date
-        set(Calendar.SECOND, 0)
-        set(Calendar.MILLISECOND, 0)
-    }
-
-    val parsedTime = parseTime(time)
-    val hour = parsedTime?.first ?: fallbackHour
-    val minute = parsedTime?.second ?: fallbackMinute
-    calendar.set(Calendar.HOUR_OF_DAY, hour)
-    calendar.set(Calendar.MINUTE, minute)
-    return calendar.time
-}
-
-private fun parseTime(value: String): Pair<Int, Int>? {
-    val trimmed = value.trim()
-    if (trimmed.isBlank()) return null
-
-    val patterns = listOf(
-        "h:mm a",
-        "hh:mm a",
-        "H:mm",
-        "HH:mm"
-    )
-    for (pattern in patterns) {
-        try {
-            val sdf = SimpleDateFormat(pattern, Locale.getDefault())
-            val parsed = sdf.parse(trimmed) ?: continue
-            val calendar = Calendar.getInstance().apply { time = parsed }
-            return calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
-        } catch (_: Exception) {
-            // Continue trying other patterns.
-        }
-    }
-    return null
 }
 
 @Preview(showBackground = true, apiLevel = 34)

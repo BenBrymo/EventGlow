@@ -7,6 +7,8 @@ import android.util.Log
 import androidx.lifecycle.viewModelScope
 import com.example.eventglow.BuildConfig
 import com.example.eventglow.common.BaseViewModel
+import com.example.eventglow.common.EventDateTimeUtils
+import com.example.eventglow.common.EventTimelineBucket
 import com.example.eventglow.common.cloudinary.CloudinaryApi
 import com.example.eventglow.dataClass.Event
 import com.example.eventglow.dataClass.EventCategory
@@ -20,14 +22,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.File
-import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -61,6 +65,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
 
     val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
+    private val httpClient = OkHttpClient()
     private val cloudinaryApi: CloudinaryApi by lazy {
         Retrofit.Builder()
             .baseUrl("https://api.cloudinary.com/")
@@ -322,7 +327,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
             }
 
             if (AUTO_ARCHIVE_ENDED_EVENTS && statusAlignedEvent.eventStatus.equals("ended", ignoreCase = true)) {
-                val endDate = parseDateFlexible(
+                val endDate = EventDateTimeUtils.parseDateFlexible(
                     statusAlignedEvent.endDate.ifBlank { statusAlignedEvent.startDate }
                 )
                 val endMs = endDate?.time ?: 0L
@@ -349,111 +354,13 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
     }
 
     private fun computeEventStatus(event: Event): String {
-        return when {
-            eventShouldBeEnded(event) -> "ended"
-            eventShouldBeOngoing(event) -> "ongoing"
-            else -> "upcoming"
+        return when (EventDateTimeUtils.classifyEventBucket(event)) {
+            EventTimelineBucket.ENDED -> "ended"
+            EventTimelineBucket.LIVE -> "ongoing"
+            EventTimelineBucket.TODAY,
+            EventTimelineBucket.UPCOMING,
+            EventTimelineBucket.UNKNOWN -> "upcoming"
         }
-    }
-
-
-    // Determine if an event should be ended
-    private fun eventShouldBeEnded(event: Event): Boolean {
-        val now = Date()
-        val window = resolveEventWindow(event) ?: return false
-        return now.after(window.end)
-    }
-
-    // Determine if an event should be ongoing
-    private fun eventShouldBeOngoing(event: Event): Boolean {
-        val now = Date()
-        val window = resolveEventWindow(event) ?: return false
-        return !now.before(window.start) && !now.after(window.end)
-    }
-
-    private data class EventWindow(
-        val start: Date,
-        val end: Date
-    )
-
-    private fun resolveEventWindow(event: Event): EventWindow? {
-        val start = parseEventStartDateTime(event) ?: return null
-        val end = resolveEventEndDateTime(event, start) ?: return null
-        return if (end.before(start)) {
-            EventWindow(start = start, end = start)
-        } else {
-            EventWindow(start = start, end = end)
-        }
-    }
-
-    private fun parseEventStartDateTime(event: Event): Date? {
-        val startDate = parseDateFlexible(event.startDate) ?: return null
-        val parsedTime = parseTime(event.eventTime)
-        return if (parsedTime != null) {
-            mergeDateAndTime(startDate, parsedTime.first, parsedTime.second)
-        } else {
-            // Fallback if time is missing/invalid: start at beginning of day.
-            mergeDateAndTime(startDate, 0, 0)
-        }
-    }
-
-    private fun resolveEventEndDateTime(event: Event, startDateTime: Date): Date? {
-        return if (event.isMultiDayEvent) {
-            val endDate = parseDateFlexible(event.endDate.ifBlank { event.startDate }) ?: return null
-            mergeDateAndTime(endDate, 23, 59)
-        } else {
-            if (event.durationMinutes > 0) {
-                Date(startDateTime.time + (event.durationMinutes * 60_000L))
-            } else {
-                val sameDay = parseDateFlexible(event.startDate) ?: return null
-                mergeDateAndTime(sameDay, 23, 59)
-            }
-        }
-    }
-
-    private fun parseDateFlexible(dateString: String): Date? {
-        val trimmed = dateString.trim()
-        if (trimmed.isBlank()) return null
-
-        val patterns = listOf("dd/MM/yyyy", "d/M/yyyy", "dd/M/yyyy", "d/MM/yyyy")
-        for (pattern in patterns) {
-            try {
-                val parser = SimpleDateFormat(pattern, Locale.getDefault()).apply { isLenient = false }
-                val parsed = parser.parse(trimmed)
-                if (parsed != null) return parsed
-            } catch (_: Exception) {
-                // Try next pattern.
-            }
-        }
-        return null
-    }
-
-    private fun parseTime(timeString: String): Pair<Int, Int>? {
-        val trimmed = timeString.trim()
-        if (trimmed.isBlank()) return null
-
-        val patterns = listOf("h:mm a", "hh:mm a", "H:mm", "HH:mm", "h a", "ha")
-        for (pattern in patterns) {
-            try {
-                val parser = SimpleDateFormat(pattern, Locale.getDefault()).apply { isLenient = false }
-                val parsed = parser.parse(trimmed) ?: continue
-                val calendar = Calendar.getInstance().apply { time = parsed }
-                return calendar.get(Calendar.HOUR_OF_DAY) to calendar.get(Calendar.MINUTE)
-            } catch (_: Exception) {
-                // Try next pattern.
-            }
-        }
-        return null
-    }
-
-    private fun mergeDateAndTime(date: Date, hourOfDay: Int, minute: Int): Date {
-        return Calendar.getInstance().apply {
-            time = date
-            set(Calendar.HOUR_OF_DAY, hourOfDay)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.time
     }
 
     // Update the status of an event in the database
@@ -572,7 +479,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
         }
     }
 
-    suspend fun checkIfEventDateIsTaken(eventDate: String, onResult: (Boolean) -> Unit) {
+    fun checkIfEventDateIsTaken(eventDate: String, onResult: (Boolean) -> Unit) {
         try {
             val firestore = FirebaseFirestore.getInstance()
 
@@ -874,38 +781,46 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
         return path.substringBeforeLast('.').takeIf { it.isNotBlank() }
     }
 
-    private fun sha1Hex(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-1").digest(value.toByteArray())
-        return digest.joinToString("") { byte -> "%02x".format(byte) }
-    }
-
-    private suspend fun deleteImageFromCloudinary(publicId: String): Result<Unit> {
+    private suspend fun deleteImageViaSupabaseFunction(publicId: String): Result<Unit> {
         return try {
-            val cloudName = BuildConfig.CLOUDINARY_CLOUD_NAME.trim()
-            val apiKey = BuildConfig.CLOUDINARY_API_KEY.trim()
-            val apiSecret = BuildConfig.CLOUDINARY_API_SECRET.trim()
-            if (cloudName.isBlank() || apiKey.isBlank() || apiSecret.isBlank()) {
-                return Result.failure(IllegalStateException("Cloudinary API credentials missing for image delete."))
+            val functionsBaseUrl = BuildConfig.SUPABASE_FUNCTIONS_BASE_URL.trim().trimEnd('/')
+            val anonKey = BuildConfig.SUPABASE_FUNCTIONS_ANON_KEY.trim()
+            val deletePath = BuildConfig.SUPABASE_FUNCTIONS_CLOUDINARY_DELETE_PATH.trim().trimStart('/')
+            if (functionsBaseUrl.isBlank() || anonKey.isBlank() || deletePath.isBlank()) {
+                return Result.failure(
+                    IllegalStateException(
+                        "Cloudinary delete function config missing. Set SUPABASE_FUNCTIONS_BASE_URL, SUPABASE_FUNCTIONS_ANON_KEY and SUPABASE_FUNCTIONS_CLOUDINARY_DELETE_PATH."
+                    )
+                )
             }
 
-            val timestamp = System.currentTimeMillis() / 1000L
-            val signaturePayload = "public_id=$publicId&timestamp=$timestamp$apiSecret"
-            val signature = sha1Hex(signaturePayload)
+            val idToken = auth.currentUser?.getIdToken(false)?.await()?.token?.trim().orEmpty()
+            val url = "$functionsBaseUrl/$deletePath"
+            val requestBody = """{"publicId":"$publicId"}"""
+                .toRequestBody("application/json; charset=utf-8".toMediaTypeOrNull())
 
-            val response = cloudinaryApi.destroyImage(
-                cloudName = cloudName,
-                publicId = publicId,
-                timestamp = timestamp,
-                apiKey = apiKey,
-                signature = signature
-            )
-
-            val result = response.result.orEmpty().lowercase(Locale.getDefault())
-            if (result == "ok" || result == "not found") {
-                Result.success(Unit)
-            } else {
-                Result.failure(IllegalStateException("Cloudinary destroy returned: ${response.result}"))
+            val requestBuilder = Request.Builder()
+                .url(url)
+                .post(requestBody)
+                .addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer $anonKey")
+                .addHeader("Content-Type", "application/json")
+            if (idToken.isNotBlank()) {
+                requestBuilder.addHeader("X-Firebase-Id-Token", idToken)
             }
+            val request = requestBuilder.build()
+
+            httpClient.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    return Result.failure(
+                        IllegalStateException(
+                            "Cloudinary delete function failed (${response.code}): $responseBody"
+                        )
+                    )
+                }
+            }
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -927,7 +842,7 @@ class EventsManagementViewModel(application: Application) : BaseViewModel(applic
             val publicId = event.imagePublicId.ifBlank { extractCloudinaryPublicId(event.imageUri) ?: "" }
             var cleanupWarning: String? = null
             if (publicId.isNotBlank()) {
-                deleteImageFromCloudinary(publicId)
+                deleteImageViaSupabaseFunction(publicId)
                     .onFailure { cleanupWarning = it.localizedMessage ?: "Cloudinary image cleanup failed." }
             }
 
